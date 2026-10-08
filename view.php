@@ -405,7 +405,7 @@ function renderDash(){
     return '<div class="frow" data-go="#/leads?stage='+k+'" title="Открыть: '+esc(n)+'"><span class="fn">'+esc(n)+'</span><span class="fb"><i style="width:'+w[k]+'%;background:'+lerp('#0b4db5','#b9d4ff',k/Math.max(STAGES.length-1,1))+';clip-path:polygon(0 0,100% 0,'+(100-d)+'% 100%,'+d+'% 100%)"></i></span><span class="fc">'+fmt(st[k])+'</span><span class="fp">'+Math.round(st[k]/top*100)+'%</span></div>'}).join('');
   var conv=m.leads?m.sales/m.leads*100:0, sconv=m.svcReq?m.svcDone/m.svcReq*100:0;
 
-  var sh=m.src.map(function(r){return '<tr class="cl" data-go="#/leads?source='+r.s.id+'"><td>'+srcCell(r.s.id)+'</td><td class="num">'+r.leads+'</td><td class="num">'+r.deals+'</td><td class="num">'+r.sales+'</td><td class="r" style="white-space:nowrap">'+mln(r.rev)+' млн ₸</td></tr>'}).join('');
+  var sh=m.src.filter(function(r){return r.leads!==0||r.deals!==0||r.sales!==0||r.rev!==0}).map(function(r){return '<tr class="cl" data-go="#/leads?source='+r.s.id+'"><td>'+srcCell(r.s.id)+'</td><td class="num">'+r.leads+'</td><td class="num">'+r.deals+'</td><td class="num">'+r.sales+'</td><td class="r" style="white-space:nowrap">'+mln(r.rev)+' млн ₸</td></tr>'}).join('')||'<tr><td colspan="5" class="empty">Нет данных за выбранный период</td></tr>';
 
   var od=EMP.map(function(e){var t=taskStats(e.id);return {e:e,total:t.total,od:t.overdue}}).filter(function(x){return x.od>0}).sort(function(a,b){return b.od-a.od||b.total-a.total});
   var oh=od.length?od.map(function(x){return '<tr class="cl" data-go="#/employee/'+x.e.id+'"><td>'+personCell(x.e.id)+'</td><td>'+esc(x.e.role)+'</td><td class="num">'+x.total+'</td><td class="num red">'+x.od+'</td></tr>'}).join(''):'<tr><td colspan="4" class="empty">Просроченных задач нет 🎉</td></tr>';
