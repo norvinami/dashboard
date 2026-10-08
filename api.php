@@ -10,6 +10,29 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     dashboardFail('Разрешено только чтение данных.', 405);
 }
 try {
+    if (isset($_GET['tasks'])) {
+        if (!\Bitrix\Main\Loader::includeModule('tasks')) { dashboardFail('Модуль задач недоступен.'); }
+        require_once __DIR__.'/task-data.php';
+        $filter = [];
+        if (!empty($_GET['who'])) {
+            if (!is_string($_GET['who']) || !preg_match('/^e([0-9]+)$/', $_GET['who'], $match)) {
+                dashboardFail('Некорректный сотрудник.', 400);
+            }
+            $filter['manager'] = (int)$match[1];
+        }
+        $state = $_GET['st'] ?? '';
+        if (!is_string($state) || !in_array($state, ['', 'overdue', 'open', 'done'], true)) {
+            dashboardFail('Некорректный статус.', 400);
+        }
+        $filter['state'] = $state;
+        $search = $_GET['q'] ?? '';
+        if (!is_string($search) || mb_strlen($search) > 200) { dashboardFail('Некорректный поиск.', 400); }
+        $filter['search'] = $search;
+        $cursor = $_GET['cursor'] ?? '0';
+        if (!is_string($cursor) || !ctype_digit($cursor) || strlen($cursor) > 15) { dashboardFail('Некорректная страница.', 400); }
+        echo json_encode(dashboardReadTasks($filter, (int)$cursor), JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR);
+        exit;
+    }
     if (!\Bitrix\Main\Loader::includeModule('crm')) {
         dashboardFail('Модуль CRM недоступен.');
     }
@@ -66,28 +89,13 @@ try {
             dashboardFail('За 8 месяцев найдено более 5000 доступных сделок. Нужна серверная агрегация; неполные цифры не показываем.', 422);
         }
     }
-    $tasks = [];
     if (!\Bitrix\Main\Loader::includeModule('tasks')) {
         dashboardFail('Модуль задач недоступен.');
     }
-    $taskResult = CTasks::GetList(
-        ['ID' => 'ASC'], ['CHECK_PERMISSIONS' => 'Y'],
-        ['ID', 'TITLE', 'RESPONSIBLE_ID', 'DEADLINE', 'STATUS'],
-        ['USER_ID' => 5, 'CHECK_PERMISSIONS' => 'Y', 'NAV_PARAMS' => ['nTopCount' => 2001]]
-    );
-    if (!is_object($taskResult)) {
-        dashboardFail('Не удалось прочитать задачи.');
-    }
-    while ($row = $taskResult->Fetch()) {
-        $employeeIds[(int)$row['RESPONSIBLE_ID']] = true;
-        $deadline = $row['DEADLINE'] ? MakeTimeStamp($row['DEADLINE']) : false;
-        $done = (int)$row['STATUS'] === 5;
-        $tasks[] = ['id' => (int)$row['ID'], 'title' => (string)$row['TITLE'],
-            'manager' => (int)$row['RESPONSIBLE_ID'], 'due' => $deadline ? date('Y-m-d', $deadline) : '',
-            'done' => $done, 'overdue' => !$done && $deadline && $deadline < time()];
-        if (count($tasks) > 2000) {
-            dashboardFail('Найдено более 2000 доступных задач. Нужна серверная агрегация; неполные цифры не показываем.', 422);
-        }
+    require_once __DIR__.'/task-data.php';
+    $taskPage = dashboardReadTasks();
+    foreach (array_keys($taskPage['summary']['employees']) as $id) {
+        $employeeIds[(int)$id] = true;
     }
     $employees = [];
     foreach (array_keys($employeeIds) as $id) {
@@ -98,7 +106,7 @@ try {
     }
     echo json_encode(['today' => $today->format('Y-m-d'), 'from' => $start->format('Y-m-d'),
         'categories' => $categories, 'sources' => $sources, 'deals' => $deals,
-        'tasks' => $tasks, 'employees' => $employees],
+        'tasks' => $taskPage['tasks'], 'taskSummary' => $taskPage['summary'], 'taskPage' => $taskPage, 'employees' => $employees],
         JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR);
 } catch (Throwable $error) {
     error_log('Bavaria dashboard: '.get_class($error).' at '.$error->getFile().':'.$error->getLine());

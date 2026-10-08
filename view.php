@@ -288,6 +288,20 @@ var EM={};EMP.forEach(function(e){EM[e.id]=e;e.ini=e.full.split(' ').map(functio
 var SALES_EMP=EMP.filter(function(e){return e.sales}).map(function(e){return e.id}),SVC_EMP=EMP.filter(function(e){return e.svc}).map(function(e){return e.id});
 var SVC_ST={new:['Звонок/заявка','b-gray'],in_work:['В работе','b-amber'],done:['Запись на сервис','b-green'],cancel:['Провал','b-red']};
 var DB={leads:[],service:[],tasks:live.tasks.map(function(t){return {id:'T'+t.id,title:t.title,who:'e'+t.manager,due:t.due,status:t.done?'done':'open',overdue:!!t.overdue}})};
+var taskSummary=live.taskSummary;
+function taskStats(id){return taskSummary.employees[id.slice(1)]||{total:0,overdue:0,done:0}}
+function mapTask(t){var id='e'+t.manager;if(!EM[id]){var e={id:id,name:'Сотрудник '+t.manager,full:'Сотрудник '+t.manager,role:'',c:'#5b8fd6',ini:'С',sales:false,svc:false};EM[id]=e;EMP.push(e)}return {id:'T'+t.id,title:t.title,who:id,due:t.due,status:t.done?'done':'open',overdue:!!t.overdue}}
+var taskCache={key:null,rows:[],summary:null,cursor:0,hasMore:false,loading:false,error:null};
+function taskKey(q){return JSON.stringify([q.who||'',q.st||'',q.q||''])}
+async function requestTaskPage(q,more){
+ var key=taskKey(q);if(taskCache.loading&&taskCache.key===key)return;
+ if(!more){taskCache={key:key,rows:[],summary:null,cursor:0,hasMore:false,loading:false,error:null}}
+ var cache=taskCache;cache.loading=true;cache.error=null;
+ try{var params=new URLSearchParams({tasks:'1',who:q.who||'',st:q.st||'',q:q.q||'',cursor:String(more?cache.cursor:0)});var response=await fetch('api.php?'+params.toString(),{credentials:'same-origin',cache:'no-store'});var page=await response.json();if(!response.ok||page.error)throw new Error(page.error||'Ошибка загрузки задач');if(taskCache!==cache)return;cache.rows=more?cache.rows.concat(page.tasks.map(mapTask)):page.tasks.map(mapTask);cache.summary=page.summary;cache.cursor=page.cursor;cache.hasMore=page.hasMore;}
+ catch(error){if(taskCache===cache)cache.error=error.message}
+ finally{if(taskCache===cache){cache.loading=false;render()}}
+}
+function ensureTaskPage(q){if(taskCache.key!==taskKey(q)){requestTaskPage(q,false);app.textContent='Загрузка задач…';return false}if(taskCache.loading){app.textContent='Загрузка задач…';return false}if(taskCache.error){app.textContent='Задачи не загружены: '+taskCache.error;return false}return !!taskCache.summary}
 var stageKeys=[],STAGES=[],STAGE1=[];
 var allDeals=live.deals.filter(function(d){return d.category!==7}).map(function(d){return {id:'D'+d.id,name:d.title,phone:categoryNames[d.category]||'—',src:SRC[d.source]?d.source:'__unknown',m:monthIndex(d.date),date:d.date,stageKey:d.category+':'+d.stageId,stageName:d.stageName,mgr:'e'+d.manager,model:categoryNames[d.category]||'—',exp:d.amount,amount:d.semantic==='S'?d.amount:0,won:d.semantic==='S',open:d.semantic==='P',category:d.category}});
 var allService=live.deals.filter(function(d){return d.category===7}).map(function(d){return {id:'D'+d.id,client:d.title,car:'—',work:'—',status:d.semantic==='S'?'done':d.semantic==='F'?'cancel':d.stageId==='C7:NEW'?'new':'in_work',m:monthIndex(d.date),date:d.date,mgr:'e'+d.manager,wo:null,category:7}});
@@ -376,7 +390,7 @@ function chip(){return '<button class="chip" data-period-open>'+P().chip+ico('i-
 
 function renderDash(){
   var per=P(),m=metrics(per.months),pv=metrics(per.prev);
-  var overdue=DB.tasks.filter(isOverdue).length;
+  var overdue=taskSummary.overdue;
   var K=[
     {ic:'i-coins',lb:'Сумма успешных сделок',v:mln(m.rev),u:'млн ₸',d:delta(m.rev,pv&&pv.rev),go:'#/sales'},
     {ic:'i-car',lb:'Успешные сделки',v:fmt(m.sales),d:delta(m.sales,pv&&pv.sales),go:'#/sales'},
@@ -393,7 +407,7 @@ function renderDash(){
 
   var sh=m.src.map(function(r){return '<tr class="cl" data-go="#/leads?source='+r.s.id+'"><td>'+srcCell(r.s.id)+'</td><td class="num">'+r.leads+'</td><td class="num">'+r.deals+'</td><td class="num">'+r.sales+'</td><td class="r" style="white-space:nowrap">'+mln(r.rev)+' млн ₸</td></tr>'}).join('');
 
-  var od=EMP.map(function(e){var t=DB.tasks.filter(function(t){return t.who===e.id});return {e:e,total:t.length,od:t.filter(isOverdue).length}}).filter(function(x){return x.od>0}).sort(function(a,b){return b.od-a.od||b.total-a.total});
+  var od=EMP.map(function(e){var t=taskStats(e.id);return {e:e,total:t.total,od:t.overdue}}).filter(function(x){return x.od>0}).sort(function(a,b){return b.od-a.od||b.total-a.total});
   var oh=od.length?od.map(function(x){return '<tr class="cl" data-go="#/employee/'+x.e.id+'"><td>'+personCell(x.e.id)+'</td><td>'+esc(x.e.role)+'</td><td class="num">'+x.total+'</td><td class="num red">'+x.od+'</td></tr>'}).join(''):'<tr><td colspan="4" class="empty">Просроченных задач нет 🎉</td></tr>';
 
   app.innerHTML=
@@ -438,7 +452,7 @@ var LISTS={
    text:function(s){return s.client+' '+s.car+' '+s.work+' '+(s.wo||'')},
    sum:function(r){var d=r.filter(function(s){return s.status==='done'}).length;return [['Обращений',fmt(r.length)],['Записей',fmt(d)]]}},
  tasks:{title:'Задачи',crumb:'Задачи',create:'task',noPeriod:1,
-   rows:function(q){return DB.tasks.filter(function(t){return (q.who?t.who===q.who:true)&&(q.st==='overdue'?isOverdue(t):q.st==='open'?t.status==='open'&&!isOverdue(t):q.st==='done'?t.status==='done':true)}).sort(function(a,b){return (isOverdue(b)-isOverdue(a))||(a.status>b.status?-1:a.status<b.status?1:0)||a.due.localeCompare(b.due)})},
+   rows:function(q){return taskCache.rows},
    filters:[{k:'st',lb:'Все задачи',opts:[['overdue','Просроченные'],['open','В срок'],['done','Выполненные']]},{k:'who',lb:'Все сотрудники',opts:EMP.map(function(e){return [e.id,e.name]})}],
    head:['','Задача','Исполнитель','Срок','Статус'],
    row:taskRow,text:function(t){return t.title+' '+EM[t.who].name},
@@ -449,16 +463,18 @@ function taskRow(t){var o=isOverdue(t),d=t.status==='done';
 
 var listState={limit:50};
 function renderList(kind,q){
-  var L=LISTS[kind],rows=L.rows(q),search=(q.q||'').toLowerCase();
+  if(kind==='tasks'&&!ensureTaskPage(q))return;
+  var L=LISTS[kind],rows=kind==='tasks'?taskCache.rows:L.rows(q),search=kind==='tasks'?'':(q.q||'').toLowerCase();
   if(search)rows=rows.filter(function(r){return L.text(r).toLowerCase().indexOf(search)>=0});
   var fl=L.filters.map(function(f){return '<select class="inp" data-filter="'+f.k+'"><option value="">'+f.lb+'</option>'+f.opts.map(function(o){return '<option value="'+esc(o[0])+'"'+(q[f.k]===o[0]?' selected':'')+'>'+esc(o[1])+'</option>'}).join('')+'</select>'}).join('');
-  var sum=L.sum?'<div class="sum-row">'+L.sum(rows).map(function(s){return '<div class="card sum"><small>'+s[0]+'</small><b>'+s[1]+'</b></div>'}).join('')+'</div>':'';
-  var shown=rows.slice(0,listState.limit);
+  var values=kind==='tasks'?[['Всего',fmt(taskCache.summary.total)],['Просрочено',fmt(taskCache.summary.overdue)],['Выполнено',fmt(taskCache.summary.done)]]:(L.sum?L.sum(rows):[]);
+  var sum=values.length?'<div class="sum-row">'+values.map(function(s){return '<div class="card sum"><small>'+s[0]+'</small><b>'+s[1]+'</b></div>'}).join('')+'</div>':'';
+  var shown=kind==='tasks'?rows:rows.slice(0,listState.limit);
   app.innerHTML='<div class="crumbs"><a data-go="#/">Панель управления</a> › <span>'+L.crumb+'</span></div>'+
-   '<div class="page-h"><h1>'+L.title+' <span class="cnt">'+fmt(rows.length)+'</span></h1><span class="badge b-gray">'+(L.noPeriod?'Текущее состояние на '+dRu(TODAY):P().label)+'</span><div class="spacer" style="flex:1"></div><button class="btn btn-p" data-create="'+L.create+'">'+ico('i-plus')+'Добавить</button></div>'+sum+
+   '<div class="page-h"><h1>'+L.title+' <span class="cnt">'+fmt(kind==='tasks'?taskCache.summary.total:rows.length)+'</span></h1><span class="badge b-gray">'+(L.noPeriod?'Текущее состояние на '+dRu(TODAY):P().label)+'</span><div class="spacer" style="flex:1"></div><button class="btn btn-p" data-create="'+L.create+'">'+ico('i-plus')+'Добавить</button></div>'+sum+
    '<div class="card"><div class="filters"><label class="inp search">'+ico('i-search')+'<input id="lsearch" placeholder="Поиск…" value="'+esc(q.q||'')+'"></label>'+fl+(Object.keys(q).length?'<button class="btn btn-o" data-go="#/'+kind+'">Сбросить</button>':'')+'</div>'+
    '<div class="tw"><table><thead><tr>'+L.head.map(function(h){return '<th>'+h+'</th>'}).join('')+'</tr></thead><tbody>'+(shown.length?shown.map(L.row).join(''):'<tr><td colspan="'+L.head.length+'" class="empty">Ничего не найдено</td></tr>')+'</tbody></table></div>'+
-   (rows.length>shown.length?'<div class="more"><button class="btn btn-g" data-more>Показать ещё ('+(rows.length-shown.length)+')</button></div>':'')+'</div>';
+   (kind==='tasks'?(taskCache.hasMore?'<div class="more"><button class="btn btn-g" data-task-more>Показать ещё</button></div>':''):rows.length>shown.length?'<div class="more"><button class="btn btn-g" data-more>Показать ещё ('+(rows.length-shown.length)+')</button></div>':'')+'</div>';
   var inp=document.getElementById('lsearch'),tm;
   inp.addEventListener('input',function(){clearTimeout(tm);tm=setTimeout(function(){setQ('q',inp.value)},300)});
   if(q.q){inp.focus();inp.setSelectionRange(inp.value.length,inp.value.length)}
@@ -468,23 +484,24 @@ function setQ(k,v){var r=parseHash();if(v)r.q[k]=v;else delete r.q[k];listState.
 
 function renderEmployee(id){
   var e=EM[id];if(!e)return renderDash();
-  var ms=P().months,tasks=DB.tasks.filter(function(t){return t.who===id}).sort(function(a,b){return (isOverdue(b)-isOverdue(a))||(a.status>b.status?-1:1)||a.due.localeCompare(b.due)});
-  var od=tasks.filter(isOverdue).length,done=tasks.filter(function(t){return t.status==='done'}).length;
+  if(!ensureTaskPage({who:id}))return;
+  var ms=P().months,tasks=taskCache.rows,totals=taskStats(id);
+  var od=totals.overdue,done=totals.done;
   var leads=DB.leads.filter(function(l){return l.mgr===id&&ms.indexOf(l.m)>=0}),sold=leads.filter(function(l){return l.won});
   var svc=DB.service.filter(function(s){return s.mgr===id&&ms.indexOf(s.m)>=0});
-  var stats=[['Всего задач',tasks.length],['Просрочено','<span class="red">'+od+'</span>'],['Выполнено',done]];
+  var stats=[['Всего задач',totals.total],['Просрочено','<span class="red">'+od+'</span>'],['Выполнено',done]];
   if(e.sales)stats.push(['Сделки за период',leads.length],['Успешные',sold.length],['Сумма успешных сделок',mln(sold.reduce(function(a,l){return a+l.amount},0))+' млн ₸']);
   if(e.svc)stats.push(['Обращения',svc.length],['Записей на сервис',svc.filter(function(s){return s.status==='done'}).length]);
   app.innerHTML='<div class="crumbs"><a data-go="#/">Панель управления</a> › <a data-go="#/staff">Эффективность</a> › <span>'+esc(e.name)+'</span></div>'+
    '<div class="card emp-head">'+ava(e,'lg')+'<div style="flex:1;min-width:180px"><h1>'+esc(e.full)+'</h1><p>'+esc(e.role)+'</p></div><button class="btn btn-p" data-create="task" data-who="'+id+'">'+ico('i-plus')+'Поставить задачу</button>'+(e.sales?'<button class="btn btn-g" data-go="#/sales?mgr='+id+'">Продажи сотрудника</button>':'')+(e.svc?'<button class="btn btn-g" data-go="#/service?mgr='+id+'">Обращения</button>':'')+'</div>'+
    '<div class="sum-row">'+stats.map(function(s){return '<div class="card sum"><small>'+s[0]+'</small><b>'+s[1]+'</b></div>'}).join('')+'</div>'+
-   '<div class="card tasks-card"><div class="ph">'+ico('i-clock')+'<h2>Задачи сотрудника</h2></div><div class="tw"><table><thead><tr><th></th><th>Задача</th><th>Исполнитель</th><th>Срок</th><th>Статус</th></tr></thead><tbody>'+tasks.map(taskRow).join('')+'</tbody></table></div></div>';
+   '<div class="card tasks-card"><div class="ph">'+ico('i-clock')+'<h2>Задачи сотрудника</h2></div><div class="tw"><table><thead><tr><th></th><th>Задача</th><th>Исполнитель</th><th>Срок</th><th>Статус</th></tr></thead><tbody>'+tasks.map(taskRow).join('')+'</tbody></table></div>'+(taskCache.hasMore?'<div class="more"><button class="btn btn-g" data-task-more>Показать ещё</button></div>':'')+'</div>';
 }
 
 function renderStaff(){
   var ms=P().months;
-  var rows=EMP.map(function(e){var t=DB.tasks.filter(function(t){return t.who===e.id}),l=DB.leads.filter(function(x){return x.mgr===e.id&&ms.indexOf(x.m)>=0}),s=l.filter(function(x){return x.won});
-    return {e:e,tasks:t.length,od:t.filter(isOverdue).length,done:t.filter(function(x){return x.status==='done'}).length,leads:l.length,deals:l.filter(function(x){return x.open}).length,sales:s.length,rev:s.reduce(function(a,x){return a+x.amount},0)}});
+  var rows=EMP.map(function(e){var t=taskStats(e.id),l=DB.leads.filter(function(x){return x.mgr===e.id&&ms.indexOf(x.m)>=0}),s=l.filter(function(x){return x.won});
+    return {e:e,tasks:t.total,od:t.overdue,done:t.done,leads:l.length,deals:l.filter(function(x){return x.open}).length,sales:s.length,rev:s.reduce(function(a,x){return a+x.amount},0)}});
   app.innerHTML='<div class="crumbs"><a data-go="#/">Панель управления</a> › <span>Эффективность</span></div><div class="page-h"><h1>Эффективность сотрудников</h1><span class="badge b-gray">'+P().label+'</span></div>'+
    '<div class="card"><div class="tw"><table><thead><tr><th>Сотрудник</th><th>Должность</th><th class="num">Сделки</th><th class="num">В работе</th><th class="num">Успешные</th><th class="r">Сумма успешных сделок</th><th class="num">Задачи</th><th class="num">Выполнено</th><th class="num">Просрочено</th></tr></thead><tbody>'+
    rows.map(function(r){var sl=r.e.sales;return '<tr class="cl" data-go="#/employee/'+r.e.id+'"><td>'+personCell(r.e.id)+'</td><td>'+esc(r.e.role)+'</td><td class="num">'+(sl?r.leads:'—')+'</td><td class="num">'+(sl?r.deals:'—')+'</td><td class="num">'+(sl?r.sales:'—')+'</td><td class="r" style="white-space:nowrap">'+(sl?mln(r.rev)+' млн ₸':'—')+'</td><td class="num">'+r.tasks+'</td><td class="num">'+r.done+'</td><td class="num '+(r.od?'red':'')+'">'+r.od+'</td></tr>'}).join('')+'</tbody></table></div></div>';
@@ -510,7 +527,7 @@ document.getElementById('dateBtn').addEventListener('click',function(e){e.stopPr
 document.getElementById('createBtn').addEventListener('click',function(e){e.stopPropagation();dateMenu.classList.remove('open');createMenu.classList.toggle('open')});
 
 document.addEventListener('click',function(e){
-  var t=e.target.closest('[data-period-open],[data-period],[data-create],[data-toggle],[data-lead],[data-svc],[data-more],[data-close],[data-go]');
+  var t=e.target.closest('[data-period-open],[data-period],[data-create],[data-toggle],[data-lead],[data-svc],[data-more],[data-task-more],[data-close],[data-go]');
   if(!t){closeMenus();return}
   if(t.hasAttribute('data-period-open')){e.stopPropagation();window.scrollTo({top:0,behavior:'smooth'});openPeriod();return}
   closeMenus();
@@ -518,6 +535,7 @@ document.addEventListener('click',function(e){
   if(t.hasAttribute('data-create')||t.hasAttribute('data-toggle')){toast('Первая версия работает только на чтение. Изменения выполняйте в Bitrix.');return}
   if(t.hasAttribute('data-lead')){leadCard(t.getAttribute('data-lead'));return}
   if(t.hasAttribute('data-svc')){svcCard(t.getAttribute('data-svc'));return}
+  if(t.hasAttribute('data-task-more')){var route=parseHash();requestTaskPage(route.path[0]==='employee'?{who:route.path[1]}:route.q,true);return}
   if(t.hasAttribute('data-more')){listState.limit+=100;render();return}
   if(t.hasAttribute('data-close')){closeModal();return}
   if(t.hasAttribute('data-go')){closeModal();listState.limit=50;go(t.getAttribute('data-go'))}
