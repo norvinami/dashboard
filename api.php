@@ -48,8 +48,10 @@ try {
         $sources[(string)$row['STATUS_ID']] = (string)$row['NAME'];
     }
     $stages = [];
+    $stageOrder = [];
     foreach ($categories as $category) {
         $stages[$category['id']] = \Bitrix\Crm\Category\DealCategory::getStageList($category['id']);
+        $stageOrder[$category['id']] = array_map('strval', array_keys($stages[$category['id']]));
     }
     // CRM permissions are checked as logged-in user 5; no elevated service identity.
     $result = CCrmDeal::GetListEx(
@@ -105,7 +107,7 @@ try {
             'role' => $row ? (string)$row['WORK_POSITION'] : ''];
     }
     echo json_encode(['today' => $today->format('Y-m-d'), 'from' => $start->format('Y-m-d'),
-        'categories' => $categories, 'sources' => $sources, 'deals' => $deals,
+        'categories' => $categories, 'stageOrder' => $stageOrder, 'sources' => $sources, 'deals' => $deals,
         'tasks' => $taskPage['tasks'], 'taskSummary' => $taskPage['summary'], 'taskPage' => $taskPage, 'employees' => $employees],
         JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR);
 } catch (Throwable $error) {
