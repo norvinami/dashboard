@@ -37,8 +37,12 @@ try {
         dashboardFail('Модуль CRM недоступен.');
     }
     $today = new DateTimeImmutable('today');
-    $start = $today->modify('first day of this month')->modify('-7 months');
-    $categories = [['id' => 0, 'name' => 'Основная воронка']];
+    require_once __DIR__.'/date-range.php';
+    try { $range = dashboardDateRange($_GET, $today); }
+    catch (InvalidArgumentException $error) { dashboardFail($error->getMessage(), 400); }
+    $start = $range['previousFrom'];
+    $end = $range['to'];
+    $categories = [['id' => 0, 'name' => 'Продажа новых авто']];
     foreach (\Bitrix\Crm\Category\DealCategory::getAll(false) as $category) {
         $categories[] = ['id' => (int)$category['ID'], 'name' => (string)$category['NAME']];
     }
@@ -56,7 +60,7 @@ try {
     // CRM permissions are checked as logged-in user 5; no elevated service identity.
     $result = CCrmDeal::GetListEx(
         ['ID' => 'ASC'],
-        ['>=DATE_CREATE' => $start->format('d.m.Y').' 00:00:00', 'CHECK_PERMISSIONS' => 'Y'],
+        ['>=DATE_CREATE' => $start->format('d.m.Y').' 00:00:00', '<=DATE_CREATE' => $end->format('d.m.Y').' 23:59:59', 'CHECK_PERMISSIONS' => 'Y'],
         false,
         ['nTopCount' => 5001],
         ['ID', 'TITLE', 'CATEGORY_ID', 'STAGE_ID', 'STAGE_SEMANTIC_ID', 'SOURCE_ID',
@@ -88,8 +92,15 @@ try {
             'amount' => (float)$row['OPPORTUNITY'], 'currency' => (string)$row['CURRENCY_ID']
         ];
         if (count($deals) > 5000) {
-            dashboardFail('За 8 месяцев найдено более 5000 доступных сделок. Нужна серверная агрегация; неполные цифры не показываем.', 422);
+            dashboardFail('В выбранном и предыдущем периодах найдено более 5000 доступных сделок. Нужна серверная агрегация; неполные цифры не показываем.', 422);
         }
+    }
+    require_once __DIR__.'/lead-data.php';
+    try { $leadStats = dashboardReadLeads($range['from'], $range['to']); }
+    catch (DomainException $error) { $leadStats = ['error' => $error->getMessage()]; }
+    catch (Throwable $error) {
+        error_log('Bavaria leads: '.get_class($error).' at '.$error->getFile().':'.$error->getLine());
+        $leadStats = ['error' => 'Не удалось прочитать лиды. Остальные показатели доступны; требуется проверка журнала PHP.'];
     }
     if (!\Bitrix\Main\Loader::includeModule('tasks')) {
         dashboardFail('Модуль задач недоступен.');
@@ -107,6 +118,7 @@ try {
             'role' => $row ? (string)$row['WORK_POSITION'] : ''];
     }
     echo json_encode(['today' => $today->format('Y-m-d'), 'from' => $start->format('Y-m-d'),
+        'range' => array_map(static fn($date) => $date->format('Y-m-d'), $range), 'leadStats' => $leadStats,
         'categories' => $categories, 'stageOrder' => $stageOrder, 'sources' => $sources, 'deals' => $deals,
         'tasks' => $taskPage['tasks'], 'taskSummary' => $taskPage['summary'], 'taskPage' => $taskPage, 'employees' => $employees],
         JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR);

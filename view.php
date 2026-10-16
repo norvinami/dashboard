@@ -216,6 +216,30 @@ tbody tr.cl:hover td{background:#f8fafd}
 .funnel-more{margin-top:8px}
 .funnel-link{display:block;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:0;background:none;padding:0;font:inherit;text-align:left;color:var(--blue);cursor:pointer}
 .funnel-overview th,.funnel-overview td{padding:9px 6px;font-size:11px}
+
+.date-range{display:flex;align-items:flex-end;gap:8px;padding:8px 10px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+.date-range label{display:grid;gap:2px;font-size:11px;color:var(--muted)}
+.date-range input{min-width:0;width:130px;border:1px solid var(--line);border-radius:7px;padding:5px;background:#fff;font-size:12px}
+.date-chip{font-size:10px;white-space:nowrap;cursor:default}
+.lead-panel{margin-bottom:14px}
+.lead-filters{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:18px}
+.lead-filters label{display:grid;gap:5px;font-size:12px;color:var(--ink2);min-width:190px}
+.lead-filters .inp{font-size:12px}
+.lead-chart-row{margin-bottom:20px}
+.lead-chart-title{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px}
+.lead-chart-title span{font-size:12px;color:var(--ink2)}
+.lead-stacked{display:flex;height:32px;border-radius:8px;overflow:hidden;background:var(--track)}
+.lead-segment{display:flex;align-items:center;justify-content:center;color:white;min-width:0;overflow:hidden;font-size:12px;font-weight:700}
+.lead-segment.qualified,.lead-dot.qualified{background:#16a34a}
+.lead-segment.failed,.lead-dot.failed{background:#e16a68}
+.lead-segment.open,.lead-dot.open{background:#1668f2}
+.lead-segment.unconfirmed,.lead-dot.unconfirmed{background:#d9972c}
+.lead-row-counts{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--ink2)}
+.lead-dot{display:inline-block;width:8px;height:8px;margin-right:4px;border-radius:3px}
+.lead-totals{display:flex;gap:22px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:12px;font-size:13px}
+.lead-totals b{margin-left:6px}
+.lead-note{font-size:11px;color:var(--muted);margin:10px 0 0}
+@media(max-width:640px){.date-range{width:100%;flex-wrap:wrap}.date-range label{flex:1}.date-range input{width:100%}.lead-chart-title{align-items:flex-start;flex-direction:column}.lead-filters label{width:100%}.date-chip{white-space:normal;text-align:right;max-width:130px}.lead-totals{gap:10px}}
 </style>
 </head>
 <body>
@@ -236,17 +260,18 @@ tbody tr.cl:hover td{background:#f8fafd}
       </div>
     </div>
     <div class="dd"><button class="pill-btn" id="pipelineBtn" title="Фильтр воронок Bitrix"><svg class="i"><use href="#i-hand"/></svg><span id="pipelineLbl">Воронки</span><svg class="i"><use href="#i-chev"/></svg></button></div>
-    <div class="dd datebtn" style="display:flex">
-      <button class="pill-btn" id="dateBtn" style="flex:1;justify-content:space-between"><span style="display:flex;gap:10px;align-items:center"><svg class="i"><use href="#i-cal"/></svg><span id="dateLbl"></span></span><svg class="i" style="width:16px;color:var(--ink2)"><use href="#i-chev"/></svg></button>
-      <div class="menu" id="dateMenu"></div>
-    </div>
+    <form class="date-range" id="dateRangeForm" method="get">
+      <label>С<input type="date" name="from" id="dateFrom" required aria-label="Дата с"></label>
+      <label>По<input type="date" name="to" id="dateTo" required aria-label="Дата по"></label>
+      <button class="btn btn-p btn-s" type="submit">Применить</button>
+    </form>
     <div class="pill-btn user">
       <div class="ava" style="background:linear-gradient(135deg,#8a6a58,#4b3a33)">ОШ</div>
       <div class="ut"><b>Оксана Шлегель</b><small>Только чтение</small></div>
       <svg class="i ut" style="width:16px;color:var(--ink2)"><use href="#i-chev"/></svg>
     </div>
   </header>
-  <main id="app"></main><p style="color:var(--muted);font-size:12px;margin:16px 0">Период — дата создания сделки. Показаны только доступные Оксане данные CRM и задач. Суммы успешных сделок в ₸, не поступления оплаты. Стадии — текущее состояние, без истории переходов. Данные 1С и поля автомобиля пока не подключены. Обновление — при перезагрузке страницы.</p>
+  <main id="app"></main><p style="color:var(--muted);font-size:12px;margin:16px 0">Период — дата создания лида для графика обращений и дата создания сделки для остальных показателей. Причина обращения берётся из текущего значения поля лида. Показаны только доступные Оксане данные CRM и задач. Суммы успешных сделок в ₸, не поступления оплаты. Стадии — текущее состояние, без истории переходов. Данные 1С и поля автомобиля пока не подключены. Обновление — при перезагрузке страницы.</p>
 </div>
 
 <div class="ov" id="ov"><div class="modal" id="modal"></div></div>
@@ -281,16 +306,21 @@ tbody tr.cl:hover td{background:#f8fafd}
 
 var app=document.getElementById('app');
 app.textContent='Загрузка данных Bitrix…';
+var dateQuery=new URLSearchParams(location.search),dateFrom=document.getElementById('dateFrom'),dateTo=document.getElementById('dateTo');
+var clock=new Date(),localToday=clock.getFullYear()+'-'+String(clock.getMonth()+1).padStart(2,'0')+'-'+String(clock.getDate()).padStart(2,'0');
+dateFrom.value=dateQuery.get('from')||localToday.slice(0,7)+'-01';dateTo.value=dateQuery.get('to')||localToday;
+function validateDates(){dateTo.setCustomValidity(dateFrom.value&&dateTo.value&&dateFrom.value>dateTo.value?'Дата «по» должна быть не раньше даты «с».':'')}
+dateFrom.addEventListener('input',validateDates);dateTo.addEventListener('input',validateDates);
+document.getElementById('dateRangeForm').addEventListener('submit',function(e){validateDates();if(!this.reportValidity()){e.preventDefault();return}var filters={reason:leadReason||'all',result:leadOutcome||'all',funnel:funnelChoice||'selected'};if(Array.isArray(selectedPipelines))filters.pipelines=selectedPipelines.join(',');Object.keys(filters).forEach(function(name){var input=this.querySelector('[name="'+name+'"]');if(!input){input=document.createElement('input');input.type='hidden';input.name=name;this.appendChild(input)}input.value=filters[name]},this)});
 var live;
-try { var response=await fetch('api.php',{credentials:'same-origin',cache:'no-store'}); live=await response.json(); if(!response.ok||live.error)throw new Error(live.error||'Нет доступа к данным'); }
+try { var response=await fetch('api.php?'+new URLSearchParams({from:dateFrom.value,to:dateTo.value}),{credentials:'same-origin',cache:'no-store'}); live=await response.json(); if(!response.ok||live.error)throw new Error(live.error||'Нет доступа к данным'); }
 catch(error){app.textContent='Данные не загружены: '+error.message;return;}
-var TODAY=live.today,TODAY_M=7;
-var MONTHS=[];var start=new Date(live.from+'T12:00:00');
-for(var i=0;i<8;i++){var d=new Date(start.getFullYear(),start.getMonth()+i,1,12);MONTHS.push({y:d.getFullYear(),m:d.getMonth()+1,name:d.toLocaleDateString('ru-RU',{month:'long',year:'numeric'}),g:d.toLocaleDateString('ru-RU',{month:'short'}),days:new Date(d.getFullYear(),d.getMonth()+1,0).getDate()})}
-function monthIndex(date){return MONTHS.findIndex(function(m){return date.slice(0,7)===m.y+'-'+String(m.m).padStart(2,'0')})}
-var PERIODS=[{id:'p4',months:[4,5,6,7],chip:'За 4 месяца'},{id:'m7',months:[7],chip:'За месяц'},{id:'m6',months:[6],chip:'За месяц'},{id:'m5',months:[5],chip:'За месяц'},{id:'m4',months:[4],chip:'За месяц'},{id:'p0',months:[0,1,2,3],chip:'За 4 месяца'},{id:'all',months:[0,1,2,3,4,5,6,7],chip:'За 8 месяцев'}];
-PERIODS.forEach(function(p){var a=MONTHS[p.months[0]],b=MONTHS[p.months[p.months.length-1]];p.label='01 '+a.g+' '+a.y+' — '+b.days+' '+b.g+' '+b.y;var n=p.months.length,s=p.months[0]-n;p.prev=s>=0?p.months.map(function(m){return m-n}):null});
+var TODAY=live.today;
+dateFrom.value=live.range.from;dateTo.value=live.range.to;
+function inRange(range,date){return date>=range.from&&date<=range.to}
+function P(){return {range:{from:live.range.from,to:live.range.to},prev:{from:live.range.previousFrom,to:live.range.previousTo},label:dRu(live.range.from)+' — '+dRu(live.range.to),chip:dRu(live.range.from)+' — '+dRu(live.range.to)}}
 var PIPELINES=live.categories,selectedPipelines=PIPELINES.map(function(p){return p.id});
+if(dateQuery.has('pipelines')){var requested=dateQuery.get('pipelines').split(',').filter(function(id){return /^\d+$/.test(id)}).map(Number);selectedPipelines=selectedPipelines.filter(function(id){return requested.indexOf(id)>=0})}
 var categoryNames={};PIPELINES.forEach(function(p){categoryNames[p.id]=p.name});
 var SOURCES=Object.keys(live.sources).map(function(id){var n=live.sources[id],v=n.toLowerCase(),ic=v.indexOf('instagram')>=0?'i-cam':v.indexOf('whatsapp')>=0?'i-chat':v.indexOf('тел')>=0?'i-phone':v.indexOf('сайт')>=0?'i-globe':'i-dots';return {id:id,name:n,ic:ic,bg:'#1668f2'}});
 SOURCES.push({id:'__unknown',name:'Не указан',ic:'i-dots',bg:'#7c8799'});var SRC={};SOURCES.forEach(function(s){SRC[s.id]=s});
@@ -314,14 +344,14 @@ async function requestTaskPage(q,more){
 }
 function ensureTaskPage(q){if(taskCache.key!==taskKey(q)){requestTaskPage(q,false);app.textContent='Загрузка задач…';return false}if(taskCache.loading){app.textContent='Загрузка задач…';return false}if(taskCache.error){app.textContent='Задачи не загружены: '+taskCache.error;return false}return !!taskCache.summary}
 var stageKeys=[],STAGES=[],STAGE1=[];
-var allDeals=live.deals.filter(function(d){return d.category!==7}).map(function(d){return {id:'D'+d.id,name:d.title,phone:categoryNames[d.category]||'—',src:SRC[d.source]?d.source:'__unknown',m:monthIndex(d.date),date:d.date,stageKey:d.category+':'+d.stageId,stageName:d.stageName,mgr:'e'+d.manager,model:categoryNames[d.category]||'—',exp:d.amount,amount:d.semantic==='S'?d.amount:0,won:d.semantic==='S',open:d.semantic==='P',failed:d.semantic==='F',stageId:d.stageId,category:d.category}});
-var allService=live.deals.filter(function(d){return d.category===7}).map(function(d){return {id:'D'+d.id,client:d.title,car:'—',work:'—',status:d.semantic==='S'?'done':d.semantic==='F'?'cancel':d.stageId==='C7:NEW'?'new':'in_work',m:monthIndex(d.date),date:d.date,mgr:'e'+d.manager,wo:null,category:7}});
+var allDeals=live.deals.filter(function(d){return d.category!==7}).map(function(d){return {id:'D'+d.id,name:d.title,phone:categoryNames[d.category]||'—',src:SRC[d.source]?d.source:'__unknown',date:d.date,stageKey:d.category+':'+d.stageId,stageName:d.stageName,mgr:'e'+d.manager,model:categoryNames[d.category]||'—',exp:d.amount,amount:d.semantic==='S'?d.amount:0,won:d.semantic==='S',open:d.semantic==='P',failed:d.semantic==='F',stageId:d.stageId,category:d.category}});
+var allService=live.deals.filter(function(d){return d.category===7}).map(function(d){return {id:'D'+d.id,client:d.title,car:'—',work:'—',status:d.semantic==='S'?'done':d.semantic==='F'?'cancel':d.stageId==='C7:NEW'?'new':'in_work',date:d.date,mgr:'e'+d.manager,wo:null,category:7}});
 function rebuildStages(){
  stageKeys=[];STAGES=[];
  DB.leads.forEach(function(d){if(stageKeys.indexOf(d.stageKey)<0){stageKeys.push(d.stageKey);STAGES.push((selectedPipelines.filter(function(id){return id!==7}).length>1?(categoryNames[d.category]+' · '):'')+d.stageName)}d.stage=stageKeys.indexOf(d.stageKey)});
  STAGE1=STAGES;
 }
-DB.leads=allDeals.slice();DB.service=allService.slice();rebuildStages();
+DB.leads=allDeals.filter(function(d){return selectedPipelines.indexOf(d.category)>=0});DB.service=allService.filter(function(d){return selectedPipelines.indexOf(d.category)>=0});rebuildStages();document.getElementById('pipelineLbl').textContent=selectedPipelines.length===PIPELINES.length?'Все воронки':'Воронки: '+selectedPipelines.length;
 
 /* ================= HELPERS ================= */
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
@@ -337,13 +367,11 @@ function personCell(id){var e=EM[id];return '<span class="person">'+ava(e)+esc(e
 function isOverdue(t){return t.overdue}
 function stageBadge(s){return '<span class="badge b-blue">'+esc(STAGE1[s]||'—')+'</span>'}
 
-var state={period:'p4'};
-function P(){return PERIODS.find(function(p){return p.id===state.period})}
-function inM(months){return function(r){return months.indexOf(r.m)>=0}}
+function inM(range){return function(r){return inRange(range,r.date)}}
 
-function metrics(months){
-  if(!months)return null;
-  var f=inM(months),leads=DB.leads.filter(f),svc=DB.service.filter(f);
+function metrics(range){
+  if(!range)return null;
+  var f=inM(range),leads=DB.leads.filter(f),svc=DB.service.filter(f);
   var st=STAGES.map(function(_,k){return leads.filter(function(l){return l.stage===k}).length});
   var sold=leads.filter(function(l){return l.won});
   var src=SOURCES.map(function(s){var ls=leads.filter(function(l){return l.src===s.id});
@@ -353,6 +381,7 @@ function metrics(months){
 }
 function delta(cur,prev,invert){
   if(prev==null)return '<span class="delta na">нет данных</span>';
+  if(prev===0&&cur!==0)return '<span class="delta na">Нет базы сравнения</span>';
   var p=prev?Math.trunc((cur-prev)/prev*100):0,up=p>=0;
   if(p===0)return '<span class="delta na">0% без изменений</span>';
   var cls=invert?(cur>prev?'bad':'up'):(up?'up':'dn');
@@ -383,7 +412,6 @@ window.addEventListener('hashchange',function(){render();window.scrollTo(0,0)});
 
 function render(){
   var r=parseHash(),p=r.path;
-  document.getElementById('dateLbl').textContent=P().label;
   if(!p.length)return renderDash();
   if(p[0]==='employee')return renderEmployee(p[1]);
   if(p[0]==='staff')return renderStaff();
@@ -397,15 +425,15 @@ function donut(val,max,size,stroke,label,big){
   return '<div class="donut" style="width:'+size+'px;height:'+size+'px"><svg width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'" style="transform:rotate(-90deg)"><circle cx="'+size/2+'" cy="'+size/2+'" r="'+r+'" fill="none" stroke="var(--track)" stroke-width="'+stroke+'"/><circle class="arc" cx="'+size/2+'" cy="'+size/2+'" r="'+r+'" fill="none" stroke="var(--blue)" stroke-width="'+stroke+'" stroke-dasharray="'+(C*f)+' '+C+'"/></svg><div class="dl"><b>'+big+'</b><span>'+label+'</span></div></div>';
 }
 function lerp(a,b,t){var pa=parseInt(a.slice(1),16),pb=parseInt(b.slice(1),16);var c=[16,8,0].map(function(s){var x=(pa>>s)&255,y=(pb>>s)&255;return Math.round(x+(y-x)*t)});return 'rgb('+c.join(',')+')'}
-function chip(){return '<button class="chip" data-period-open>'+P().chip+ico('i-chev')+'</button>'}
+function chip(){return '<span class="chip date-chip">'+esc(P().chip)+'</span>'}
 
-var funnelChoice=PIPELINES.some(function(p){return p.id===0})?'0':'selected',funnelExpanded=false;
+var funnelChoice=dateQuery.get('funnel')||(PIPELINES.some(function(p){return p.id===0})?'0':'selected'),funnelExpanded=false;
 var MAIN_STAGE_LABELS={'новая сделка':'Новая сделка','анализ потребностей':'Потребности','коммерческое предложение':'Предложение','тест-драйв':'Тест-драйв','согласование условий':'Условия','принятие решения о покупке':'Решение','резерв/заказ авто':'Резерв / заказ','счет на оплату':'Счёт на оплату','подписание дкп':'Договор','подготовка к выдаче':'Подготовка к выдаче','отложил покупку':'Отложено'};
-function renderFunnel(months){
+function renderFunnel(range){
  var available=PIPELINES.filter(function(p){return p.id!==7&&selectedPipelines.indexOf(p.id)>=0});
  if(funnelChoice!=='selected'&&!available.some(function(p){return String(p.id)===funnelChoice}))funnelChoice='selected';
  var ids=funnelChoice==='selected'?available.map(function(p){return p.id}):[Number(funnelChoice)];
- var rows=DB.leads.filter(function(d){return ids.indexOf(d.category)>=0&&months.indexOf(d.m)>=0});
+ var rows=DB.leads.filter(function(d){return ids.indexOf(d.category)>=0&&inRange(range,d.date)});
  var picker='<div class="funnel-picker"><select class="inp" data-funnel-select aria-label="Воронка для блока продаж"><option value="selected"'+(funnelChoice==='selected'?' selected':'')+'>Выбранные воронки</option>'+available.map(function(p){return '<option value="'+p.id+'"'+(funnelChoice===String(p.id)?' selected':'')+'>'+esc(p.name)+'</option>'}).join('')+'</select></div>';
  var head='<div class="ph">'+ico('i-users')+'<div><h2>Воронка продаж</h2><p>По текущим стадиям</p></div>'+chip()+'</div>'+picker;
  if(!ids.length||!rows.length)return head+'<div class="empty">Нет сделок за выбранный период</div>';
@@ -427,8 +455,20 @@ function renderFunnel(months){
  return head+'<div class="fun-wrap"><div class="funnel">'+bars+more+'</div>'+donut(won,rows.length,150,16,'Доля<br>успешных',pct(won/rows.length*100))+'</div>'+outcomes;
 }
 
+var leadReason=['all','sales','service'].indexOf(dateQuery.get('reason'))>=0?dateQuery.get('reason'):'all',leadOutcome=['all','qualified','failed','open','unconfirmed'].indexOf(dateQuery.get('result'))>=0?dateQuery.get('result'):'all';
+function renderLeadChart(){
+ var stats=live.leadStats;
+ var header='<div class="ph">'+ico('i-users')+'<div><h2>Обращения из лидов</h2><p>Целевые — конвертированы в нужную воронку</p></div>'+chip()+'</div>';
+ if(!stats||stats.error)return header+'<div class="empty">'+esc(stats&&stats.error||'Данные лидов недоступны')+'</div>';
+ var names={sales:'Покупка автомобиля',service:'Сервис'},outcomes=[['qualified','Целевые'],['failed','Неуспешные'],['open','В работе'],['unconfirmed','Не подтверждено']];
+ var controls='<div class="lead-filters"><label>Причина обращения<select class="inp" data-lead-reason><option value="all">Все направления</option>'+Object.keys(names).map(function(id){return '<option value="'+id+'"'+(leadReason===id?' selected':'')+'>'+names[id]+'</option>'}).join('')+'</select></label><label>Результат<select class="inp" data-lead-outcome><option value="all">Все результаты</option>'+outcomes.map(function(o){return '<option value="'+o[0]+'"'+(leadOutcome===o[0]?' selected':'')+'>'+o[1]+'</option>'}).join('')+'</select></label></div>';
+ var directions=Object.keys(names).filter(function(id){return leadReason==='all'||id===leadReason}),total=0,qualified=0;
+ var chart=directions.map(function(id){var d=stats.directions[id];total+=d.total;qualified+=d.qualified;return '<div class="lead-chart-row"><div class="lead-chart-title"><b>'+names[id]+'</b><span>Всего '+fmt(d.total)+' · целевых '+fmt(d.qualified)+' · '+(d.total?pct(d.qualified/d.total*100):'—')+'</span></div><div class="lead-stacked" role="img" aria-label="'+esc(names[id]+': всего '+d.total+', целевых '+d.qualified+', неуспешных '+d.failed+', в работе '+d.open+', не подтверждено '+d.unconfirmed)+'">'+outcomes.filter(function(o){return leadOutcome==='all'||o[0]===leadOutcome}).map(function(o){return d[o[0]]?'<div class="lead-segment '+o[0]+'" style="width:'+d[o[0]]/Math.max(d.total,1)*100+'%" title="'+o[1]+': '+fmt(d[o[0]])+'"><span>'+fmt(d[o[0]])+'</span></div>':''}).join('')+'</div><div class="lead-row-counts">'+outcomes.filter(function(o){return leadOutcome==='all'||o[0]===leadOutcome}).map(function(o){return '<span><i class="lead-dot '+o[0]+'"></i>'+o[1]+' <b>'+fmt(d[o[0]])+'</b></span>'}).join('')+'</div></div>'}).join('');
+ return header+controls+'<div class="lead-chart">'+chart+'</div><div class="lead-totals"><span>Всего обращений <b>'+fmt(total)+'</b></span><span>Целевых <b>'+fmt(qualified)+'</b></span><span>Конверсия <b>'+(total?pct(qualified/total*100):'—')+'</b></span></div><p class="lead-note">Конверсия — от всех лидов выбранного направления, созданных за период. Лиды в работе не считаются отказами.'+(stats.unassigned?' Без однозначной причины обращения: '+fmt(stats.unassigned)+'.':'')+' Не подтверждено — лид успешен, но связь со сделкой нужной воронки не найдена среди доступных данных.</p>';
+}
+
 function renderDash(){
-  var per=P(),m=metrics(per.months),pv=metrics(per.prev);
+  var per=P(),m=metrics(per.range),pv=metrics(per.prev);
   var overdue=taskSummary.overdue;
   var K=[
     {ic:'i-coins',lb:'Сумма успешных сделок',v:mln(m.rev),u:'млн ₸',d:delta(m.rev,pv&&pv.rev),go:'#/sales'},
@@ -449,10 +489,11 @@ function renderDash(){
   app.innerHTML=
   '<section class="hero"><div class="hero-img">'+heroSvg()+'</div><div class="hero-txt"><h1>Панель управления</h1><nav><a data-go="#/sales">Продажи</a><span>·</span><a data-go="#/service">Сервис</a><span>·</span><a data-go="#/leads">Клиенты</a><span>·</span><a data-go="#/tasks">Задачи</a><span>·</span><a data-go="#/staff">Эффективность</a></nav></div></section>'+
   '<section class="kpis">'+kh+'</section>'+
+  '<section class="card panel lead-panel">'+renderLeadChart()+'</section>'+
   '<section class="mid">'+
-   '<div class="card panel p-fun">'+renderFunnel(per.months)+'</div>'+
+   '<div class="card panel p-fun">'+renderFunnel(per.range)+'</div>'+
    '<div class="card panel"><div class="ph">'+ico('i-car')+'<div><h2>Сервис</h2><p>Доля заявок, завершившихся записью</p></div>'+chip()+'</div><div class="svc">'+donut(m.svcDone,m.svcReq,170,20,'Доля<br>успешных',Math.round(sconv)+'%')+
-     '<div class="svc-stats"><div class="stat" data-go="#/service"><span>Обращения в сервис</span><b>'+fmt(m.svcReq)+'</b></div><div class="stat" data-go="#/service?st=done"><span>Записи на сервис</span><b>'+fmt(m.svcDone)+'</b></div><div class="svc-bar"><i style="width:'+sconv+'%"></i></div><div class="stat" data-go="#/service?st=in_work"><span>В работе сейчас</span><b>'+fmt(DB.service.filter(function(s){return s.status==='in_work'&&per.months.indexOf(s.m)>=0}).length)+'</b></div></div></div></div>'+
+     '<div class="svc-stats"><div class="stat" data-go="#/service"><span>Обращения в сервис</span><b>'+fmt(m.svcReq)+'</b></div><div class="stat" data-go="#/service?st=done"><span>Записи на сервис</span><b>'+fmt(m.svcDone)+'</b></div><div class="svc-bar"><i style="width:'+sconv+'%"></i></div><div class="stat" data-go="#/service?st=in_work"><span>В работе сейчас</span><b>'+fmt(DB.service.filter(function(s){return s.status==='in_work'&&inRange(per.range,s.date)}).length)+'</b></div></div></div></div>'+
    '<div class="card panel"><div class="ph">'+ico('i-bars')+'<h2>Источники клиентов</h2>'+chip()+'</div><div class="tw"><table><thead><tr><th>Источник</th><th class="num">Сделки</th><th class="num">В работе</th><th class="num">Успешные</th><th class="r">Сумма успешных сделок</th></tr></thead><tbody>'+sh+'</tbody></table></div></div>'+
   '</section>'+
   '<section class="card tasks-card"><div class="ph">'+ico('i-clock')+'<h2>Просроченные задачи</h2><button class="btn btn-g btn-s" style="margin-left:auto" data-create="task">'+ico('i-plus')+'Задача</button></div><div class="tw"><table><thead><tr><th>Сотрудник</th><th>Должность</th><th class="num">Всего задач</th><th class="num">Просрочено</th></tr></thead><tbody>'+oh+'</tbody></table></div></section>';
@@ -461,27 +502,27 @@ function renderDash(){
 /* ================= LIST PAGES ================= */
 var LISTS={
  leads:{title:'Обращения и сделки',crumb:'Клиенты',create:'lead',
-   rows:function(q){var ms=P().months;return DB.leads.filter(function(l){return ms.indexOf(l.m)>=0&&(q.category!==undefined?l.category===Number(q.category):true)&&(q.outcome==='won'?l.won:q.outcome==='failed'?l.failed:true)&&(q.source?l.src===q.source:true)&&(q.stage!==undefined&&q.stage!==''?l.stage===+q.stage:true)})},
+   rows:function(q){var ms=P().range;return DB.leads.filter(function(l){return inRange(ms,l.date)&&(q.category!==undefined?l.category===Number(q.category):true)&&(q.outcome==='won'?l.won:q.outcome==='failed'?l.failed:true)&&(q.source?l.src===q.source:true)&&(q.stage!==undefined&&q.stage!==''?l.stage===+q.stage:true)})},
    filters:[{k:'source',lb:'Все источники',opts:SOURCES.map(function(s){return [s.id,s.name]})},{k:'stage',lb:'Все этапы',opts:STAGES.map(function(s,i){return [String(i),'Стадия: '+s]})}],
    head:['Сделка','Воронка','Источник','Этап','Менеджер','Дата'],
    row:function(l){return '<tr class="cl" data-lead="'+l.id+'"><td><b>'+esc(l.name)+'</b></td><td style="white-space:nowrap">'+esc(l.phone)+'</td><td>'+srcCell(l.src)+'</td><td>'+stageBadge(l.stage)+'</td><td>'+personCell(l.mgr)+'</td><td>'+dRu(l.date)+'</td></tr>'},
    text:function(l){return l.name+' '+l.phone}},
  deals:{title:'Сделки',crumb:'Продажи › Сделки',create:'lead',
-   rows:function(q){var ms=P().months;return DB.leads.filter(function(l){return ms.indexOf(l.m)>=0&&l.open&&(q.source?l.src===q.source:true)})},
+   rows:function(q){var ms=P().range;return DB.leads.filter(function(l){return inRange(ms,l.date)&&l.open&&(q.source?l.src===q.source:true)})},
    filters:[{k:'source',lb:'Все источники',opts:SOURCES.map(function(s){return [s.id,s.name]})}],
    head:['Название','Воронка','Статус','Сумма','Менеджер','Источник'],
    row:function(l){return '<tr class="cl" data-lead="'+l.id+'"><td><b>'+esc(l.name)+'</b></td><td>'+esc(l.model||'—')+'</td><td>'+(l.won?'<span class="badge b-green">Успешна</span>':'<span class="badge b-amber">В работе</span>')+'</td><td style="white-space:nowrap">'+mln1(l.amount||l.exp||0)+'</td><td>'+personCell(l.mgr)+'</td><td>'+srcCell(l.src)+'</td></tr>'},
    text:function(l){return l.name+' '+(l.model||'')},
    sum:function(r){var w=r.filter(function(l){return l.open});return [['Сделок',fmt(r.length)],['В работе',fmt(w.length)],['Потенциал в работе',mln1(w.reduce(function(a,l){return a+(l.exp||0)},0))]]}},
  sales:{title:'Успешные сделки',crumb:'Продажи',create:'lead',
-   rows:function(q){var ms=P().months;return DB.leads.filter(function(l){return ms.indexOf(l.m)>=0&&l.won&&(q.source?l.src===q.source:true)&&(q.mgr?l.mgr===q.mgr:true)})},
+   rows:function(q){var ms=P().range;return DB.leads.filter(function(l){return inRange(ms,l.date)&&l.won&&(q.source?l.src===q.source:true)&&(q.mgr?l.mgr===q.mgr:true)})},
    filters:[{k:'source',lb:'Все источники',opts:SOURCES.map(function(s){return [s.id,s.name]})},{k:'mgr',lb:'Все менеджеры',opts:SALES_EMP.map(function(id){return [id,EM[id].name]})}],
    head:['Название','Воронка','Сумма','Менеджер','Источник','Дата'],
    row:function(l){return '<tr class="cl" data-lead="'+l.id+'"><td><b>'+esc(l.name)+'</b></td><td>'+esc(l.model)+'</td><td style="white-space:nowrap"><b>'+mln1(l.amount)+'</b></td><td>'+personCell(l.mgr)+'</td><td>'+srcCell(l.src)+'</td><td>'+dRu(l.date)+'</td></tr>'},
    text:function(l){return l.name+' '+l.model},
    sum:function(r){var s=r.reduce(function(a,l){return a+l.amount},0);return [['Успешных сделок',fmt(r.length)],['Сумма успешных сделок',mln(s)+' млн ₸'],['Средний чек',r.length?mln1(s/r.length):'—']]}},
  service:{title:'Сервис',crumb:'Сервис',create:'service',
-   rows:function(q){var ms=P().months;return DB.service.filter(function(s){return ms.indexOf(s.m)>=0&&(q.st?s.status===q.st:true)&&(q.wo?s.status==='done':true)&&(q.mgr?s.mgr===q.mgr:true)})},
+   rows:function(q){var ms=P().range;return DB.service.filter(function(s){return inRange(ms,s.date)&&(q.st?s.status===q.st:true)&&(q.wo?s.status==='done':true)&&(q.mgr?s.mgr===q.mgr:true)})},
    filters:[{k:'st',lb:'Все статусы',opts:Object.keys(SVC_ST).map(function(k){return [k,SVC_ST[k][0]]})},{k:'mgr',lb:'Все ответственные',opts:SVC_EMP.map(function(id){return [id,EM[id].name]})}],
    head:['Заявка','Автомобиль','Вид работ','Заказ-наряд','Статус','Ответственный','Дата'],
    row:function(s){return '<tr class="cl" data-svc="'+s.id+'"><td><b>'+esc(s.client)+'</b></td><td style="white-space:nowrap">'+esc(s.car)+'</td><td>'+esc(s.work)+'</td><td>'+(s.wo||'—')+'</td><td><span class="badge '+SVC_ST[s.status][1]+'">'+SVC_ST[s.status][0]+'</span></td><td>'+personCell(s.mgr)+'</td><td>'+dRu(s.date)+'</td></tr>'},
@@ -521,10 +562,10 @@ function setQ(k,v){var r=parseHash();if(v)r.q[k]=v;else delete r.q[k];listState.
 function renderEmployee(id){
   var e=EM[id];if(!e)return renderDash();
   if(!ensureTaskPage({who:id}))return;
-  var ms=P().months,tasks=taskCache.rows,totals=taskStats(id);
+  var ms=P().range,tasks=taskCache.rows,totals=taskStats(id);
   var od=totals.overdue,done=totals.done;
-  var leads=DB.leads.filter(function(l){return l.mgr===id&&ms.indexOf(l.m)>=0}),sold=leads.filter(function(l){return l.won});
-  var svc=DB.service.filter(function(s){return s.mgr===id&&ms.indexOf(s.m)>=0});
+  var leads=DB.leads.filter(function(l){return l.mgr===id&&inRange(ms,l.date)}),sold=leads.filter(function(l){return l.won});
+  var svc=DB.service.filter(function(s){return s.mgr===id&&inRange(ms,s.date)});
   var stats=[['Всего задач',totals.total],['Просрочено','<span class="red">'+od+'</span>'],['Выполнено',done]];
   if(e.sales)stats.push(['Сделки за период',leads.length],['Успешные',sold.length],['Сумма успешных сделок',mln(sold.reduce(function(a,l){return a+l.amount},0))+' млн ₸']);
   if(e.svc)stats.push(['Обращения',svc.length],['Записей на сервис',svc.filter(function(s){return s.status==='done'}).length]);
@@ -535,8 +576,8 @@ function renderEmployee(id){
 }
 
 function renderStaff(){
-  var ms=P().months;
-  var rows=EMP.map(function(e){var t=taskStats(e.id),l=DB.leads.filter(function(x){return x.mgr===e.id&&ms.indexOf(x.m)>=0}),s=l.filter(function(x){return x.won});
+  var ms=P().range;
+  var rows=EMP.map(function(e){var t=taskStats(e.id),l=DB.leads.filter(function(x){return x.mgr===e.id&&inRange(ms,x.date)}),s=l.filter(function(x){return x.won});
     return {e:e,tasks:t.total,od:t.overdue,done:t.done,leads:l.length,deals:l.filter(function(x){return x.open}).length,sales:s.length,rev:s.reduce(function(a,x){return a+x.amount},0)}});
   app.innerHTML='<div class="crumbs"><a data-go="#/">Панель управления</a> › <span>Эффективность</span></div><div class="page-h"><h1>Эффективность сотрудников</h1><span class="badge b-gray">'+P().label+'</span></div>'+
    '<div class="card"><div class="tw"><table><thead><tr><th>Сотрудник</th><th>Должность</th><th class="num">Сделки</th><th class="num">В работе</th><th class="num">Успешные</th><th class="r">Сумма успешных сделок</th><th class="num">Задачи</th><th class="num">Выполнено</th><th class="num">Просрочено</th></tr></thead><tbody>'+
@@ -556,18 +597,14 @@ function leadCard(id){var d=DB.leads.find(function(r){return r.id===id});if(!d)r
 function svcCard(id){var d=DB.service.find(function(r){return r.id===id});if(!d)return;openModal('Заявка в сервис','<div class="kv"><span>Название</span><b>'+esc(d.client)+'</b><span>Статус</span><div>'+esc(SVC_ST[d.status][0])+'</div><span>Ответственный</span><div>'+esc(EM[d.mgr].name)+'</div><span>Создана</span><div>'+dRu(d.date)+'</div></div>','<a class="btn btn-p" href="/crm/deal/details/'+Number(id.slice(1))+'/" target="_blank" rel="noopener">Открыть в Bitrix</a><button class="btn btn-o" data-close>Закрыть</button>')}
 
 /* ================= MENUS & EVENTS ================= */
-var dateMenu=document.getElementById('dateMenu'),createMenu=document.getElementById('createMenu');
-function closeMenus(){dateMenu.classList.remove('open');createMenu.classList.remove('open')}
-function openPeriod(){dateMenu.innerHTML=PERIODS.map(function(p){return '<button data-period="'+p.id+'" class="'+(p.id===state.period?'on':'')+'">'+ico('i-cal')+'<span>'+(p.title?p.title+'<br><small style="color:var(--muted)">'+p.label+'</small>':p.label)+'</span></button>'}).join('');createMenu.classList.remove('open');dateMenu.classList.toggle('open')}
-document.getElementById('dateBtn').addEventListener('click',function(e){e.stopPropagation();openPeriod()});
-document.getElementById('createBtn').addEventListener('click',function(e){e.stopPropagation();dateMenu.classList.remove('open');createMenu.classList.toggle('open')});
+var createMenu=document.getElementById('createMenu');
+function closeMenus(){createMenu.classList.remove('open')}
+document.getElementById('createBtn').addEventListener('click',function(e){e.stopPropagation();createMenu.classList.toggle('open')});
 
 document.addEventListener('click',function(e){
   var t=e.target.closest('[data-period-open],[data-period],[data-create],[data-toggle],[data-lead],[data-svc],[data-more],[data-task-more],[data-funnel-expand],[data-funnel-pick],[data-close],[data-go]');
   if(!t){closeMenus();return}
-  if(t.hasAttribute('data-period-open')){e.stopPropagation();window.scrollTo({top:0,behavior:'smooth'});openPeriod();return}
   closeMenus();
-  if(t.hasAttribute('data-period')){funnelExpanded=false;state.period=t.getAttribute('data-period');listState.limit=50;render();toast('Период: '+P().label);return}
   if(t.hasAttribute('data-create')||t.hasAttribute('data-toggle')){toast('Первая версия работает только на чтение. Изменения выполняйте в Bitrix.');return}
   if(t.hasAttribute('data-lead')){leadCard(t.getAttribute('data-lead'));return}
   if(t.hasAttribute('data-svc')){svcCard(t.getAttribute('data-svc'));return}
@@ -578,7 +615,7 @@ document.addEventListener('click',function(e){
   if(t.hasAttribute('data-close')){closeModal();return}
   if(t.hasAttribute('data-go')){closeModal();listState.limit=50;go(t.getAttribute('data-go'))}
 });
-document.addEventListener('change',function(e){if(e.target.hasAttribute('data-funnel-select')){funnelChoice=e.target.value;funnelExpanded=false;render();return}var f=e.target.getAttribute&&e.target.getAttribute('data-filter');if(f)setQ(f,e.target.value)});
+document.addEventListener('change',function(e){if(e.target.hasAttribute('data-lead-reason')){leadReason=e.target.value;render();return}if(e.target.hasAttribute('data-lead-outcome')){leadOutcome=e.target.value;render();return}if(e.target.hasAttribute('data-funnel-select')){funnelChoice=e.target.value;funnelExpanded=false;render();return}var f=e.target.getAttribute&&e.target.getAttribute('data-filter');if(f)setQ(f,e.target.value)});
 
 
 function applyPipelines(ids){selectedPipelines=ids.slice();funnelChoice=ids.filter(function(id){return id!==7}).length===1?String(ids.filter(function(id){return id!==7})[0]):'selected';funnelExpanded=false;DB.leads=allDeals.filter(function(r){return ids.indexOf(r.category)>=0});DB.service=allService.filter(function(r){return ids.indexOf(r.category)>=0});rebuildStages();LISTS.leads.filters[1].opts=STAGES.map(function(s,i){return [String(i),s]});document.getElementById('pipelineLbl').textContent=ids.length===PIPELINES.length?'Все воронки':'Воронки: '+ids.length;listState.limit=50;var route=parseHash();delete route.q.stage;var qs=Object.keys(route.q).map(function(k){return k+'='+encodeURIComponent(route.q[k])}).join('&');go('#/'+route.path.join('/')+(qs?'?'+qs:''));}
