@@ -3,7 +3,7 @@
 set -euo pipefail
 source_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 target=/home/bitrix/www/dashboard-oksana-v1
-files=(bootstrap.php index.php api.php view.php task-data.php date-range.php lead-data.php)
+files=(bootstrap.php index.php api.php view.php task-data.php date-range.php lead-data.php stage-history.php)
 if [[ ! -d "$target" || -L "$target" ]]; then
   echo "Остановка: ожидается существующий каталог дашборда $target."
   exit 1
@@ -13,6 +13,7 @@ for name in "${files[@]}"; do
 done
 php "$source_dir/tests/tasks.php"
 php "$source_dir/tests/leads-and-dates.php"
+php "$source_dir/tests/stage-history.php"
 release=$(mktemp -d /home/bitrix/bavaria-dashboard-release.XXXXXX)
 cp -a "$target/." "$release/"
 for name in "${files[@]}"; do

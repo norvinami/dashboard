@@ -53,9 +53,17 @@ try {
     }
     $stages = [];
     $stageOrder = [];
+    $stageSemantics = [];
     foreach ($categories as $category) {
         $stages[$category['id']] = \Bitrix\Crm\Category\DealCategory::getStageList($category['id']);
         $stageOrder[$category['id']] = array_map('strval', array_keys($stages[$category['id']]));
+        $stageRows = CCrmStatus::GetList(['SORT' => 'ASC'], ['ENTITY_ID' => $category['id'] === 0 ? 'DEAL_STAGE' : 'DEAL_STAGE_'.$category['id']]);
+        while ($stageRow = $stageRows->Fetch()) {
+            $code = (string)$stageRow['STATUS_ID'];
+            $semantic = (string)($stageRow['SEMANTICS'] ?? '');
+            if ($semantic === '') { $semantic = preg_match('/(^|:)WON$/', $code) ? 'S' : (preg_match('/(^|:)LOSE$/', $code) ? 'F' : 'P'); }
+            $stageSemantics[$category['id']][$code] = $semantic;
+        }
     }
     // CRM permissions are checked as logged-in user 5; no elevated service identity.
     $result = CCrmDeal::GetListEx(
@@ -95,6 +103,14 @@ try {
             dashboardFail('В выбранном и предыдущем периодах найдено более 5000 доступных сделок. Нужна серверная агрегация; неполные цифры не показываем.', 422);
         }
     }
+    require_once __DIR__.'/stage-history.php';
+    $stageHistoryError = null;
+    try { $stageHistory = dashboardDealHistory(array_values(array_filter($deals, static fn($deal) => $deal['category'] !== 7 && $deal['date'] >= $range['from']->format('Y-m-d') && $deal['date'] <= $range['to']->format('Y-m-d')))); }
+    catch (DomainException $error) { $stageHistory = []; $stageHistoryError = $error->getMessage(); }
+    catch (Throwable $error) {
+        error_log('Bavaria stage history: '.get_class($error).' at '.$error->getFile().':'.$error->getLine());
+        $stageHistory = []; $stageHistoryError = 'Не удалось прочитать историю этапов. Конверсия между этапами пока недоступна.';
+    }
     require_once __DIR__.'/lead-data.php';
     try { $leadStats = dashboardReadLeads($range['from'], $range['to']); }
     catch (DomainException $error) { $leadStats = ['error' => $error->getMessage()]; }
@@ -119,7 +135,8 @@ try {
     }
     echo json_encode(['today' => $today->format('Y-m-d'), 'from' => $start->format('Y-m-d'),
         'range' => array_map(static fn($date) => $date->format('Y-m-d'), $range), 'leadStats' => $leadStats,
-        'categories' => $categories, 'stageOrder' => $stageOrder, 'sources' => $sources, 'deals' => $deals,
+        'categories' => $categories, 'stageOrder' => $stageOrder, 'stageNames' => $stages, 'stageSemantics' => $stageSemantics,
+        'stageHistory' => $stageHistory, 'stageHistoryError' => $stageHistoryError, 'sources' => $sources, 'deals' => $deals,
         'tasks' => $taskPage['tasks'], 'taskSummary' => $taskPage['summary'], 'taskPage' => $taskPage, 'employees' => $employees],
         JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR);
 } catch (Throwable $error) {
