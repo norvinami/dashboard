@@ -23,11 +23,11 @@ function dashboardLeadReasonField(): array {
     $enums = CUserFieldEnum::GetList(['SORT' => 'ASC'], ['USER_FIELD_ID' => (int)$field['ID']]);
     while ($enum = $enums->Fetch()) {
         $label = dashboardNormalizeLabel((string)$enum['VALUE']);
-        if ($label === 'покупка автомобиля') { $directions[(string)$enum['ID']] = 'sales'; }
+        if (in_array($label, ['покупка автомобиля', 'покупка нового автомобиля'], true)) { $directions[(string)$enum['ID']] = 'sales'; }
         if ($label === 'сервис') { $directions[(string)$enum['ID']] = 'service'; }
     }
     if (!in_array('sales', $directions, true) || !in_array('service', $directions, true)) {
-        throw new DomainException('В поле «Причина обращения» не найдены оба значения: «Покупка автомобиля» и «Сервис».');
+        throw new DomainException('В поле «Причина обращения» не найдены оба значения: «Покупка нового автомобиля» (или «Покупка автомобиля») и «Сервис».');
     }
     return ['code' => (string)$field['FIELD_NAME'], 'directions' => $directions];
 }
