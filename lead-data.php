@@ -20,16 +20,18 @@ function dashboardLeadReasonField(): array {
     }
     $field = $candidates[0];
     $directions = [];
-    $enums = CUserFieldEnum::GetList(['SORT' => 'ASC'], ['USER_FIELD_ID' => (int)$field['ID']]);
+    $reasons = [];
+    $enums = CUserFieldEnum::GetList(['SORT' => 'ASC', 'ID' => 'ASC'], ['USER_FIELD_ID' => (int)$field['ID']]);
     while ($enum = $enums->Fetch()) {
         $label = dashboardNormalizeLabel((string)$enum['VALUE']);
-        if (in_array($label, ['покупка автомобиля', 'покупка нового автомобиля'], true)) { $directions[(string)$enum['ID']] = 'sales'; }
-        if ($label === 'сервис') { $directions[(string)$enum['ID']] = 'service'; }
+        $key = 'reason_'.(int)$enum['ID'];
+        $category = null;
+        if (in_array($label, ['покупка автомобиля', 'покупка нового автомобиля'], true)) { $category = 0; }
+        if ($label === 'сервис') { $category = 7; }
+        $directions[(string)$enum['ID']] = $key;
+        $reasons[$key] = ['label' => (string)$enum['VALUE'], 'category' => $category];
     }
-    if (!in_array('sales', $directions, true) || !in_array('service', $directions, true)) {
-        throw new DomainException('В поле «Причина обращения» не найдены оба значения: «Покупка нового автомобиля» (или «Покупка автомобиля») и «Сервис».');
-    }
-    return ['code' => (string)$field['FIELD_NAME'], 'directions' => $directions];
+    return ['code' => (string)$field['FIELD_NAME'], 'directions' => $directions, 'reasons' => $reasons];
 }
 function dashboardCrmRows(string $class, array $filter, array $select): Generator {
     $after = 0;
@@ -48,7 +50,7 @@ function dashboardCrmRows(string $class, array $filter, array $select): Generato
     }
 }
 function dashboardEmptyLeadCounts(): array {
-    return ['total' => 0, 'qualified' => 0, 'failed' => 0, 'open' => 0, 'unconfirmed' => 0];
+    return ['total' => 0, 'qualified' => 0, 'failed' => 0, 'open' => 0, 'unconfirmed' => 0, 'successful' => 0];
 }
 function dashboardLeadBatch(array $batch, array $field, array &$stats): void {
     $convertedIds = [];
@@ -82,14 +84,16 @@ function dashboardLeadBatch(array $batch, array $field, array &$stats): void {
         $counts['total']++;
         if ($semantic === 'P') { $counts['open']++; }
         elseif ($semantic === 'F') { $counts['failed']++; }
-        elseif (!empty($linked[(int)$lead['ID']][$direction === 'sales' ? 0 : 7])) { $counts['qualified']++; }
+        elseif ($field['reasons'][$direction]['category'] === null) { $counts['successful']++; }
+        elseif (!empty($linked[(int)$lead['ID']][$field['reasons'][$direction]['category']])) { $counts['qualified']++; }
         else { $counts['unconfirmed']++; }
         unset($counts);
     }
 }
 function dashboardReadLeads(DateTimeImmutable $from, DateTimeImmutable $to): array {
     $field = dashboardLeadReasonField();
-    $stats = ['directions' => ['sales' => dashboardEmptyLeadCounts(), 'service' => dashboardEmptyLeadCounts()], 'unassigned' => 0];
+    $stats = ['directions' => [], 'reasons' => $field['reasons'], 'unassigned' => 0];
+    foreach ($field['reasons'] as $key => $reason) { $stats['directions'][$key] = dashboardEmptyLeadCounts(); }
     $batch = [];
     foreach (dashboardCrmRows('CCrmLead', ['>=DATE_CREATE' => $from->format('d.m.Y').' 00:00:00', '<=DATE_CREATE' => $to->format('d.m.Y').' 23:59:59'], ['ID', 'STATUS_SEMANTIC_ID', $field['code']]) as $lead) {
         $batch[] = $lead;

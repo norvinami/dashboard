@@ -1,0 +1,17 @@
+const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const source=fs.readFileSync(require('path').join(__dirname,'../view.php'),'utf8');
+const start=source.indexOf('var leadReason=dateQuery');
+const end=source.indexOf('\nfunction renderDash()',start);
+const reasons=Object.fromEntries(['Покупка нового автомобиля','Сервис','Покупка автомобиля с пробегом','Сдать авто на комиссию','СПАМ','Справочная информация','Новая <причина>'].map((label,i)=>['reason_'+i,{label,category:i===0?0:i===1?7:null}]));
+const directions=Object.fromEntries(Object.keys(reasons).map((id,i)=>[id,{total:i===6?0:4,qualified:i<2?1:0,successful:i>=2&&i<6?2:0,failed:i<6?1:0,open:i<6?1:0,unconfirmed:i<2?1:0}]));
+const ctx={dateQuery:new URLSearchParams(),live:{leadStats:{reasons,directions,unassigned:2}},ico:()=>'',chip:()=>'',fmt:String,pct:n=>n+'%',esc:s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;')};
+vm.createContext(ctx);vm.runInContext(source.slice(start,end),ctx);
+let html=ctx.renderLeadChart();
+assert.equal((html.match(/class="lead-chart-row"/g)||[]).length,7);
+assert.ok(html.includes('Новая &lt;причина&gt;'));assert.ok(!html.includes('Новая <причина>'));
+ctx.leadReason='reason_2';html=ctx.renderLeadChart();assert.equal((html.match(/class="lead-chart-row"/g)||[]).length,1);assert.ok(html.includes('успешных 2'));assert.ok(!html.includes('целевых 0'));
+ctx.leadReason='reason_0';html=ctx.renderLeadChart();assert.ok(html.includes('целевых 1'));assert.ok(html.includes('25%'));
+ctx.leadOutcome='successful';ctx.leadReason='reason_2';html=ctx.renderLeadChart();assert.ok(html.includes('lead-segment successful'));assert.ok(!html.includes('lead-segment failed'));assert.ok(html.includes('Всего 4'));
+ctx.leadReason='removed';ctx.renderLeadChart();assert.equal(ctx.leadReason,'all');
+ctx.live.leadStats={error:'<ошибка>'};assert.ok(ctx.renderLeadChart().includes('&lt;ошибка&gt;'));
+console.log('PASS: all enum rows and filters, zero rows, dynamic labels escaped, status vs target conversion, denominator unchanged, stale filter reset, isolated error.');

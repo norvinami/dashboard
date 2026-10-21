@@ -62,8 +62,8 @@ foreach ([[201,3,0],[202,3,0],[203,4,7],[204,6,7],[205,7,0],[206,10,7],[207,12,5
 }
 for($id=300;$id<900;$id++){ CCrmDeal::$rows[]=['ID'=>$id,'LEAD_ID'=>3,'CATEGORY_ID'=>0]; }
 $stats=dashboardReadLeads(new DateTimeImmutable('2026-10-01'),new DateTimeImmutable('2026-10-16'));
-checkLead($stats['directions']['sales']===['total'=>526,'qualified'=>1,'failed'=>1,'open'=>521,'unconfirmed'=>3], 'Sales cohort, unique converted lead, mismatched categories');
-checkLead($stats['directions']['service']===['total'=>4,'qualified'=>1,'failed'=>1,'open'=>1,'unconfirmed'=>1], 'Service cohort separated from sales');
+checkLead($stats['directions']['reason_101']===['total'=>526,'qualified'=>1,'failed'=>1,'open'=>521,'unconfirmed'=>3,'successful'=>0], 'Sales cohort, unique converted lead, mismatched categories');
+checkLead($stats['directions']['reason_102']===['total'=>4,'qualified'=>1,'failed'=>1,'open'=>1,'unconfirmed'=>1,'successful'=>0], 'Service cohort separated from sales');
 checkLead($stats['unassigned']===2 && CCrmLead::$queries===2, 'Missing/ambiguous reasons excluded and lead cursor advances');
 $legacyStats = $stats;
 CUserFieldEnum::$rows = [
@@ -72,12 +72,20 @@ CUserFieldEnum::$rows = [
     ['ID'=>105,'VALUE'=>'СПАМ'], ['ID'=>106,'VALUE'=>'Справочная информация'],
 ];
 $field = dashboardLeadReasonField();
-checkLead($field['directions'] === [101=>'sales',102=>'service'], 'New car label supported; used cars, commission, spam and information excluded');
-checkLead(dashboardReadLeads(new DateTimeImmutable('2026-10-01'),new DateTimeImmutable('2026-10-16')) === $legacyStats, 'Renamed sales reason preserves cohort and conversion');
-CUserFieldEnum::$rows = [['ID'=>103,'VALUE'=>'Покупка автомобиля с пробегом'],['ID'=>102,'VALUE'=>'Сервис']];
-$rejected=false;
-try { dashboardLeadReasonField(); } catch (DomainException $error) { $rejected=true; }
-checkLead($rejected, 'Used cars never substituted for new car sales');
+checkLead(count($field['reasons']) === 6 && $field['directions'][103] === 'reason_103', 'Every enum retained');
+$expanded = dashboardReadLeads(new DateTimeImmutable('2026-10-01'),new DateTimeImmutable('2026-10-16'));
+checkLead($expanded['directions']['reason_101'] === $legacyStats['directions']['reason_101'], 'Renamed sales reason preserves conversion');
+checkLead($expanded['directions']['reason_103']['total'] === 0, 'Zero count reasons retained');
+foreach ([[700,103,'S'],[701,104,'F'],[702,105,'P'],[703,106,'S']] as [$id,$reason,$semantic]) {
+    CCrmLead::$rows[]=['ID'=>$id,'UF_CRM_REASON'=>$reason,'STATUS_SEMANTIC_ID'=>$semantic,'DATE_CREATE'=>'2026-10-16 12:00:00'];
+}
+$expanded = dashboardReadLeads(new DateTimeImmutable('2026-10-01'),new DateTimeImmutable('2026-10-16'));
+checkLead($expanded['directions']['reason_103']['successful'] === 1 && $expanded['directions']['reason_103']['qualified'] === 0, 'Used cars success is not inferred target conversion');
+checkLead($expanded['directions']['reason_104']['failed'] === 1 && $expanded['directions']['reason_105']['open'] === 1 && $expanded['directions']['reason_106']['successful'] === 1, 'All additional reasons counted independently');
+CUserFieldEnum::$rows = [['ID'=>103,'VALUE'=>'Покупка автомобиля с пробегом']];
+checkLead(count(dashboardLeadReasonField()['reasons']) === 1, 'No mandatory sales/service labels');
+CUserFieldEnum::$rows[]=['ID'=>999,'VALUE'=>'Новая причина <тест>'];
+checkLead(dashboardLeadReasonField()['reasons']['reason_999']['label'] === 'Новая причина <тест>', 'Future enum labels included without code changes');
 $USER_FIELD_MANAGER->ambiguous=true;
 $rejected=false;
 try { dashboardLeadReasonField(); } catch (DomainException $error) { $rejected=true; }

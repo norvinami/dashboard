@@ -237,7 +237,7 @@ tbody tr.cl:hover td{background:#f8fafd}
 .lead-chart-title span{font-size:12px;color:var(--ink2)}
 .lead-stacked{display:flex;height:32px;border-radius:8px;overflow:hidden;background:var(--track)}
 .lead-segment{display:flex;align-items:center;justify-content:center;color:white;min-width:0;overflow:hidden;font-size:12px;font-weight:700}
-.lead-segment.qualified,.lead-dot.qualified{background:#16a34a}
+.lead-segment.successful,.lead-dot.successful,.lead-segment.qualified,.lead-dot.qualified{background:#16a34a}
 .lead-segment.failed,.lead-dot.failed{background:#e16a68}
 .lead-segment.open,.lead-dot.open{background:#1668f2}
 .lead-segment.unconfirmed,.lead-dot.unconfirmed{background:#d9972c}
@@ -525,16 +525,25 @@ function renderFunnel(range){
  return head+'<div class="fun-wrap"><div class="funnel">'+bars+more+'</div>'+donut(won,rows.length,150,16,'Доля<br>успешных',pct(won/rows.length*100))+'</div>'+outcomes+branchCards+'<p class="funnel-history-note">'+esc(note)+'</p>';
 }
 
-var leadReason=['all','sales','service'].indexOf(dateQuery.get('reason'))>=0?dateQuery.get('reason'):'all',leadOutcome=['all','qualified','failed','open','unconfirmed'].indexOf(dateQuery.get('result'))>=0?dateQuery.get('result'):'all';
+var leadReason=dateQuery.get('reason')||'all',leadOutcome=['all','qualified','successful','failed','open','unconfirmed'].indexOf(dateQuery.get('result'))>=0?dateQuery.get('result'):'all';
 function renderLeadChart(){
  var stats=live.leadStats;
- var header='<div class="ph">'+ico('i-users')+'<div><h2>Обращения из лидов</h2><p>Целевые — конвертированы в нужную воронку</p></div>'+chip()+'</div>';
+ var header='<div class="ph">'+ico('i-users')+'<div><h2>Обращения из лидов</h2><p>Все причины обращения и результаты лидов</p></div>'+chip()+'</div>';
  if(!stats||stats.error)return header+'<div class="empty">'+esc(stats&&stats.error||'Данные лидов недоступны')+'</div>';
- var names={sales:'Покупка автомобиля',service:'Сервис'},outcomes=[['qualified','Целевые'],['failed','Неуспешные'],['open','В работе'],['unconfirmed','Не подтверждено']];
- var controls='<div class="lead-filters"><label>Причина обращения<select class="inp" data-lead-reason><option value="all">Все направления</option>'+Object.keys(names).map(function(id){return '<option value="'+id+'"'+(leadReason===id?' selected':'')+'>'+names[id]+'</option>'}).join('')+'</select></label><label>Результат<select class="inp" data-lead-outcome><option value="all">Все результаты</option>'+outcomes.map(function(o){return '<option value="'+o[0]+'"'+(leadOutcome===o[0]?' selected':'')+'>'+o[1]+'</option>'}).join('')+'</select></label></div>';
- var directions=Object.keys(names).filter(function(id){return leadReason==='all'||id===leadReason}),total=0,qualified=0;
- var chart=directions.map(function(id){var d=stats.directions[id];total+=d.total;qualified+=d.qualified;return '<div class="lead-chart-row"><div class="lead-chart-title"><b>'+names[id]+'</b><span>Всего '+fmt(d.total)+' · целевых '+fmt(d.qualified)+' · '+(d.total?pct(d.qualified/d.total*100):'—')+'</span></div><div class="lead-stacked" role="img" aria-label="'+esc(names[id]+': всего '+d.total+', целевых '+d.qualified+', неуспешных '+d.failed+', в работе '+d.open+', не подтверждено '+d.unconfirmed)+'">'+outcomes.filter(function(o){return leadOutcome==='all'||o[0]===leadOutcome}).map(function(o){return d[o[0]]?'<div class="lead-segment '+o[0]+'" style="width:'+d[o[0]]/Math.max(d.total,1)*100+'%" title="'+o[1]+': '+fmt(d[o[0]])+'"><span>'+fmt(d[o[0]])+'</span></div>':''}).join('')+'</div><div class="lead-row-counts">'+outcomes.filter(function(o){return leadOutcome==='all'||o[0]===leadOutcome}).map(function(o){return '<span><i class="lead-dot '+o[0]+'"></i>'+o[1]+' <b>'+fmt(d[o[0]])+'</b></span>'}).join('')+'</div></div>'}).join('');
- return header+controls+'<div class="lead-chart">'+chart+'</div><div class="lead-totals"><span>Всего обращений <b>'+fmt(total)+'</b></span><span>Целевых <b>'+fmt(qualified)+'</b></span><span>Конверсия <b>'+(total?pct(qualified/total*100):'—')+'</b></span></div><p class="lead-note">Конверсия — от всех лидов выбранного направления, созданных за период. Лиды в работе не считаются отказами.'+(stats.unassigned?' Без однозначной причины обращения: '+fmt(stats.unassigned)+'.':'')+' Не подтверждено — лид успешен, но связь со сделкой нужной воронки не найдена среди доступных данных.</p>';
+ var reasons=stats.reasons||{},keys=Object.keys(reasons);
+ if(!Object.prototype.hasOwnProperty.call(reasons,leadReason))leadReason='all';
+ var outcomes=[['qualified','Целевые'],['successful','Успешные'],['failed','Неуспешные'],['open','В работе'],['unconfirmed','Не подтверждено']];
+ var controls='<div class="lead-filters"><label>Причина обращения<select class="inp" data-lead-reason><option value="all">Все причины</option>'+keys.map(function(id){return '<option value="'+esc(id)+'"'+(leadReason===id?' selected':'')+'>'+esc(reasons[id].label)+'</option>'}).join('')+'</select></label><label>Результат<select class="inp" data-lead-outcome><option value="all">Все результаты</option>'+outcomes.map(function(o){return '<option value="'+o[0]+'"'+(leadOutcome===o[0]?' selected':'')+'>'+o[1]+'</option>'}).join('')+'</select></label></div>';
+ var total=0;
+ var chart=keys.filter(function(id){return leadReason==='all'||id===leadReason}).map(function(id){
+  var d=stats.directions[id],known=reasons[id].category!==null;
+  var rowOutcomes=outcomes.filter(function(o){return known?o[0]!=='successful':o[0]!=='qualified'&&o[0]!=='unconfirmed'});
+  var visible=rowOutcomes.filter(function(o){return leadOutcome==='all'||o[0]===leadOutcome});
+  total+=d.total;
+  var summary='Всего '+fmt(d.total)+(known?' · целевых '+fmt(d.qualified):' · успешных '+fmt(d.successful))+' · '+(d.total?pct((known?d.qualified:d.successful)/d.total*100):'—');
+  return '<div class="lead-chart-row"><div class="lead-chart-title"><b>'+esc(reasons[id].label)+'</b><span>'+summary+'</span></div><div class="lead-stacked" role="img" aria-label="'+esc(reasons[id].label+': '+summary)+'">'+visible.map(function(o){return d[o[0]]?'<div class="lead-segment '+o[0]+'" style="width:'+d[o[0]]/Math.max(d.total,1)*100+'%" title="'+o[1]+': '+fmt(d[o[0]])+'"><span>'+fmt(d[o[0]])+'</span></div>':''}).join('')+'</div><div class="lead-row-counts">'+visible.map(function(o){return '<span><i class="lead-dot '+o[0]+'"></i>'+o[1]+' <b>'+fmt(d[o[0]])+'</b></span>'}).join('')+'</div></div>';
+ }).join('');
+ return header+controls+'<div class="lead-chart">'+chart+'</div><div class="lead-totals"><span>Всего обращений <b>'+fmt(total)+'</b></span></div><p class="lead-note">Все варианты списка, включая причины без обращений. Период — дата создания лида. Для новых авто и сервиса конверсия — доля целевых со сделкой нужной воронки; не подтверждено — успешный лид без доступной связи с ней. Для остальных причин — доля успешных лидов по статусу, без проверки воронки. Лиды в работе не считаются отказами.'+(stats.unassigned?' Без однозначной причины обращения: '+fmt(stats.unassigned)+'.':'')+'</p>';
 }
 
 function renderDash(){
