@@ -7,6 +7,13 @@ if (!defined("BAVARIA_DASHBOARD_ALLOWED")) { require __DIR__."/bootstrap.php"; }
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Бавария Павлодар — Панель управления</title>
+<?php if (defined('BAVARIA_BITRIX_APP')): ?>
+<script src="https://api.bitrix24.com/api/v1/"></script>
+<script>
+window.BAVARIA_IN_APP=window.parent!==window;
+if(window.BAVARIA_IN_APP&&window.BX24){BX24.init(function(){window.BAVARIA_APP_READY=true;BX24.fitWindow()})}
+</script>
+<?php endif; ?>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -245,6 +252,26 @@ tbody tr.cl:hover td{background:#f8fafd}
 .funnel-columns{display:grid;align-items:center;gap:8px;padding:0 4px;margin-bottom:5px;font-size:10px;color:var(--muted)}
 .funnel-columns span:nth-child(n+3){text-align:right}
 .funnel-history-note{font-size:11px;color:var(--muted);line-height:1.5;margin:10px 0 0}
+
+.p-fun .transition-row,.p-fun .funnel-columns{grid-template-columns:minmax(0,138px) minmax(0,1fr) 64px 52px}
+.p-fun .transition-row{height:auto;min-height:42px;padding-top:5px;padding-bottom:5px}
+.p-fun .transition-row .fn{white-space:normal;line-height:1.25;font-size:11px}
+.p-fun .transition-row .fb{height:9px;background:var(--track);border-radius:4px;overflow:hidden;justify-content:flex-start}
+.p-fun .transition-row .fc{font-size:11px;font-variant-numeric:tabular-nums}
+.p-fun .transition-row .fp{font-size:12px;font-weight:700;color:var(--blue)}
+
+.activity-report{margin-bottom:18px}
+.activity-controls{display:flex;align-items:flex-end;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.activity-controls label{display:grid;gap:4px;min-width:220px;flex:1;font-size:12px;color:var(--ink2)}
+.activity-controls span{font-size:11px;color:var(--muted);padding-bottom:8px}
+.activity-report table{min-width:920px}
+.activity-report th{font-size:10px;text-transform:uppercase;white-space:nowrap}
+.activity-report td{font-size:12px}
+.activity-report .activity-zero{color:#c8d0db}
+.activity-report .activity-risk{background:#fdeeee;color:#ce4c50;font-weight:700}
+.activity-report .activity-warn{background:#fff5e5;color:#b87929;font-weight:700}
+.activity-report tfoot td{font-weight:700;background:#f5f8fc;border-top:1px solid var(--line)}
+.activity-note{font-size:11px;color:var(--muted);margin:10px 0 0}
 </style>
 </head>
 <body>
@@ -256,14 +283,6 @@ tbody tr.cl:hover td{background:#f8fafd}
     </div>
     <div class="tag">Премиальные автомобили.<br>Сервис, которому доверяют.</div>
     <div class="spacer"></div>
-    <div class="dd">
-      <button class="btn btn-p" id="createBtn"><svg class="i"><use href="#i-plus"/></svg><span class="create-lbl">Создать</span></button>
-      <div class="menu" id="createMenu">
-        <button data-create="lead"><svg class="i"><use href="#i-users"/></svg>Новый лид</button>
-        <button data-create="service"><svg class="i"><use href="#i-wrench"/></svg>Обращение в сервис</button>
-        <button data-create="task"><svg class="i"><use href="#i-clock"/></svg>Задача</button>
-      </div>
-    </div>
     <div class="dd"><button class="pill-btn" id="pipelineBtn" title="Фильтр воронок Bitrix"><svg class="i"><use href="#i-hand"/></svg><span id="pipelineLbl">Воронки</span><svg class="i"><use href="#i-chev"/></svg></button></div>
     <form class="date-range" id="dateRangeForm" method="get">
       <label>С<input type="date" name="from" id="dateFrom" required aria-label="Дата с"></label>
@@ -416,6 +435,7 @@ function go(h){if(location.hash===h)render();else location.hash=h}
 window.addEventListener('hashchange',function(){render();window.scrollTo(0,0)});
 
 function render(){
+  if(window.BAVARIA_APP_READY&&window.BX24){requestAnimationFrame(function(){BX24.fitWindow()})}
   var r=parseHash(),p=r.path;
   if(!p.length)return renderDash();
   if(p[0]==='employee')return renderEmployee(p[1]);
@@ -455,7 +475,7 @@ function renderFunnel(range){
  var ids=funnelChoice==='selected'?available.map(function(p){return p.id}):[Number(funnelChoice)];
  var rows=DB.leads.filter(function(d){return ids.indexOf(d.category)>=0&&inRange(range,d.date)});
  var picker='<div class="funnel-picker"><select class="inp" data-funnel-select aria-label="Воронка для блока продаж"><option value="selected"'+(funnelChoice==='selected'?' selected':'')+'>Выбранные воронки</option>'+available.map(function(p){return '<option value="'+p.id+'"'+(funnelChoice===String(p.id)?' selected':'')+'>'+esc(p.name)+'</option>'}).join('')+'</select></div>';
- var head='<div class="ph">'+ico('i-users')+'<div><h2>Воронка продаж</h2><p>Конверсия между этапами</p></div>'+chip()+'</div>'+picker;
+ var head='<div class="ph">'+ico('i-users')+'<div><h2>Воронка продаж</h2><p>Из этапа в следующий этап</p></div>'+chip()+'</div>'+picker;
  if(!ids.length||!rows.length)return head+'<div class="empty">Нет сделок за выбранный период</div>';
  if(ids.length>1){
   var summary=available.map(function(p){var deals=rows.filter(function(d){return d.category===p.id});if(!deals.length)return '';return '<tr><td><button class="funnel-link" data-funnel-pick="'+p.id+'" title="'+esc(p.name)+'">'+esc(p.name)+'</button></td><td class="num">'+deals.filter(function(d){return d.open}).length+'</td><td class="num">'+deals.filter(function(d){return d.won}).length+'</td><td class="num">'+deals.filter(function(d){return d.failed}).length+'</td></tr>'}).join('');
@@ -465,19 +485,20 @@ function renderFunnel(range){
  var configured=live.stageOrder&&live.stageOrder[category]?live.stageOrder[category].map(String):category===0?['NEW','6','1','13','11','5','10','4','7','2','12']:[];
  var history=historyFunnel(rows,category,configured),stages=history.stages;
  var max=Math.max.apply(null,stages.map(function(stage){return stage.count}).concat([1]));
- var displayed=funnelExpanded?stages:stages.slice(0,6);
+ var transitions=stages.slice(1),displayed=funnelExpanded?transitions:transitions.slice(0,6);
  var bars=displayed.map(function(stage,i){
-  var label=category===0?(MAIN_STAGE_LABELS[stage.name.toLowerCase()]||stage.name):stage.name;
-  var rate=stage.previous&&stage.denominator?pct(stage.converted/stage.denominator*100):'—';
-  var description=stage.previous?stage.previousName+' → '+stage.name+': '+stage.converted+' из '+stage.denominator:stage.name+': первый этап';
-  return '<div class="frow" data-go="#/leads?category='+category+'&historyStage='+encodeURIComponent(stage.id)+'" title="'+esc(description)+'"><span class="fn">'+esc(label)+'</span><span class="fb"><i style="width:'+(stage.count?Math.max(8,stage.count/max*100):0)+'%;background:'+lerp('#0b4db5','#9dc3ff',i/Math.max(displayed.length-1,1))+';clip-path:polygon(0 0,100% 0,95% 100%,5% 100%)"></i></span><span class="fc">'+fmt(stage.count)+'</span><span class="fp" title="'+esc(description)+'">'+rate+'</span></div>';
+  var shortLabel=function(name){return category===0?(MAIN_STAGE_LABELS[name.toLowerCase()]||name):name};
+  var label=shortLabel(stage.previousName)+' → '+shortLabel(stage.name);
+  var rate=stage.denominator?pct(stage.converted/stage.denominator*100):'—';
+  var description=stage.previousName+' → '+stage.name+': '+stage.converted+' из '+stage.denominator;
+  return '<div class="frow transition-row" data-go="#/leads?category='+category+'&transitionFrom='+encodeURIComponent(stage.previous)+'&transitionTo='+encodeURIComponent(stage.id)+'" title="'+esc(description)+'"><span class="fn">'+esc(label)+'</span><span class="fb"><i style="width:'+(stage.denominator?stage.converted/stage.denominator*100:0)+'%;background:'+lerp('#0b4db5','#9dc3ff',i/Math.max(displayed.length-1,1))+'"></i></span><span class="fc">'+fmt(stage.converted)+'/'+fmt(stage.denominator)+'</span><span class="fp">'+rate+'</span></div>';
  }).join('');
- bars='<div class="funnel-columns"><span>Этап</span><span></span><span title="Уникальные сделки, побывавшие на этапе">Были</span><span title="Дошли до этого этапа после предыдущего / были на предыдущем">Из пред.</span></div>'+bars;
+ bars='<div class="funnel-columns"><span>Переход</span><span></span><span>Перешли</span><span>Конверсия</span></div>'+bars;
  var note='История есть у '+fmt(history.coverage)+' из '+fmt(rows.length)+' сделок. Пропущенные этапы не считаются пройденными.';
  if(live.stageHistoryError){bars='<div class="empty">'+esc(live.stageHistoryError)+'</div>';note='Переходы не восстановлены; итоговые статусы показаны по текущим данным.'}
  else if(!history.coverage){bars='<div class="empty">Для выбранных сделок нет записанной истории переходов.</div>'}
- else if(!stages.length){bars='<div class="empty">Не удалось определить порядок рабочих этапов.</div>'}
- var more=!live.stageHistoryError&&history.coverage&&stages.length>6?'<button class="btn btn-g btn-s funnel-more" data-funnel-expand aria-expanded="'+funnelExpanded+'">'+(funnelExpanded?'Свернуть':'Ещё стадий: '+(stages.length-6))+'</button>':'';
+ else if(!transitions.length){bars='<div class="empty">Не удалось определить порядок рабочих этапов.</div>'}
+ var more=!live.stageHistoryError&&history.coverage&&transitions.length>6?'<button class="btn btn-g btn-s funnel-more" data-funnel-expand aria-expanded="'+funnelExpanded+'">'+(funnelExpanded?'Свернуть':'Ещё стадий: '+(transitions.length-6))+'</button>':'';
  var outcomes='<div class="funnel-outcomes"><button class="funnel-outcome success" data-go="#/leads?category='+category+'&outcome=won"><span>Успешные</span><b>'+fmt(won)+'</b></button><button class="funnel-outcome failed" data-go="#/leads?category='+category+'&outcome=failed"><span>Проваленные</span><b>'+fmt(failed)+'</b></button></div>';
  return head+'<div class="fun-wrap"><div class="funnel">'+bars+more+'</div>'+donut(won,rows.length,150,16,'Доля<br>успешных',pct(won/rows.length*100))+'</div>'+outcomes+'<p class="funnel-history-note">'+esc(note)+'</p>';
 }
@@ -523,13 +544,13 @@ function renderDash(){
      '<div class="svc-stats"><div class="stat" data-go="#/service"><span>Обращения в сервис</span><b>'+fmt(m.svcReq)+'</b></div><div class="stat" data-go="#/service?st=done"><span>Записи на сервис</span><b>'+fmt(m.svcDone)+'</b></div><div class="svc-bar"><i style="width:'+sconv+'%"></i></div><div class="stat" data-go="#/service?st=in_work"><span>В работе сейчас</span><b>'+fmt(DB.service.filter(function(s){return s.status==='in_work'&&inRange(per.range,s.date)}).length)+'</b></div></div></div></div>'+
    '<div class="card panel"><div class="ph">'+ico('i-bars')+'<h2>Источники клиентов</h2>'+chip()+'</div><div class="tw"><table><thead><tr><th>Источник</th><th class="num">Сделки</th><th class="num">В работе</th><th class="num">Успешные</th><th class="r">Сумма успешных сделок</th></tr></thead><tbody>'+sh+'</tbody></table></div></div>'+
   '</section>'+
-  '<section class="card tasks-card"><div class="ph">'+ico('i-clock')+'<h2>Просроченные задачи</h2><button class="btn btn-g btn-s" style="margin-left:auto" data-create="task">'+ico('i-plus')+'Задача</button></div><div class="tw"><table><thead><tr><th>Сотрудник</th><th>Должность</th><th class="num">Всего задач</th><th class="num">Просрочено</th></tr></thead><tbody>'+oh+'</tbody></table></div></section>';
+  '<section class="card tasks-card"><div class="ph">'+ico('i-clock')+'<h2>Просроченные задачи</h2></div><div class="tw"><table><thead><tr><th>Сотрудник</th><th>Должность</th><th class="num">Всего задач</th><th class="num">Просрочено</th></tr></thead><tbody>'+oh+'</tbody></table></div></section>';
 }
 
 /* ================= LIST PAGES ================= */
 var LISTS={
  leads:{title:'Обращения и сделки',crumb:'Клиенты',create:'lead',
-   rows:function(q){var ms=P().range;return DB.leads.filter(function(l){return inRange(ms,l.date)&&(q.category!==undefined?l.category===Number(q.category):true)&&(q.outcome==='won'?l.won:q.outcome==='failed'?l.failed:true)&&(q.historyStage?!!dealStageVisits(l)[q.historyStage]:true)&&(q.source?l.src===q.source:true)&&(q.stage!==undefined&&q.stage!==''?l.stage===+q.stage:true)})},
+   rows:function(q){var ms=P().range;return DB.leads.filter(function(l){return inRange(ms,l.date)&&(q.category!==undefined?l.category===Number(q.category):true)&&(q.outcome==='won'?l.won:q.outcome==='failed'?l.failed:true)&&(q.transitionFrom&&q.transitionTo?!!(dealStageVisits(l)[q.transitionFrom]&&dealStageVisits(l)[q.transitionTo]&&dealStageVisits(l)[q.transitionFrom].first<dealStageVisits(l)[q.transitionTo].last):true)&&(q.historyStage?!!dealStageVisits(l)[q.historyStage]:true)&&(q.source?l.src===q.source:true)&&(q.stage!==undefined&&q.stage!==''?l.stage===+q.stage:true)})},
    filters:[{k:'source',lb:'Все источники',opts:SOURCES.map(function(s){return [s.id,s.name]})},{k:'stage',lb:'Все этапы',opts:STAGES.map(function(s,i){return [String(i),'Стадия: '+s]})}],
    head:['Сделка','Воронка','Источник','Этап','Менеджер','Дата'],
    row:function(l){return '<tr class="cl" data-lead="'+l.id+'"><td><b>'+esc(l.name)+'</b></td><td style="white-space:nowrap">'+esc(l.phone)+'</td><td>'+srcCell(l.src)+'</td><td>'+stageBadge(l.stage)+'</td><td>'+personCell(l.mgr)+'</td><td>'+dRu(l.date)+'</td></tr>'},
@@ -563,20 +584,45 @@ var LISTS={
    sum:function(r){return [['Всего',fmt(r.length)],['Просрочено',fmt(r.filter(isOverdue).length)],['Выполнено',fmt(r.filter(function(t){return t.status==='done'}).length)]]}}
 };
 function taskRow(t){var o=isOverdue(t),d=t.status==='done';
-  return '<tr><td style="width:36px"><button class="ck'+(d?' on':'')+'" data-toggle="'+t.id+'" disabled title="Статус задачи (только чтение)"></button></td><td class="'+(d?'done-t':'')+'">'+esc(t.title)+'</td><td>'+personCell(t.who)+'</td><td class="'+(o?'red':'')+'" style="white-space:nowrap">'+dRu(t.due)+'</td><td>'+(d?'<span class="badge b-green">Выполнена</span>':o?'<span class="badge b-red">Просрочена</span>':'<span class="badge b-blue">В работе</span>')+'</td></tr>'}
+  return '<tr><td style="width:36px"><span class="ck'+(d?' on':'')+'" role="img" aria-label="'+(d?'Задача выполнена':'Задача в работе')+'"></span></td><td class="'+(d?'done-t':'')+'">'+esc(t.title)+'</td><td>'+personCell(t.who)+'</td><td class="'+(o?'red':'')+'" style="white-space:nowrap">'+dRu(t.due)+'</td><td>'+(d?'<span class="badge b-green">Выполнена</span>':o?'<span class="badge b-red">Просрочена</span>':'<span class="badge b-blue">В работе</span>')+'</td></tr>'}
+
+var activityCache={key:null,loading:false,data:null,error:null},activityWho='all';
+async function requestActivityReport(){
+ var key=selectedPipelines.join(',');if(activityCache.key===key&&activityCache.loading)return;
+ var cache={key:key,loading:true,data:null,error:null};activityCache=cache;
+ try{var response=await fetch('api.php?'+new URLSearchParams({activities:'1',categories:key}),{credentials:'same-origin',cache:'no-store'});var data=await response.json();if(!response.ok||data.error)throw new Error(data.error||'Ошибка загрузки CRM-дел');if(activityCache===cache)cache.data=data;}
+ catch(error){if(activityCache===cache)cache.error=error.message}
+ finally{if(activityCache===cache){cache.loading=false;render()}}
+}
+function renderActivityReport(){
+ var heading='<div class="ph">'+ico('i-clock')+'<div><h2>Сводный отчёт по делам</h2><p>Незавершённые CRM-дела по активным сделкам выбранных воронок</p></div></div>';
+ if(activityCache.key!==selectedPipelines.join(',')){requestActivityReport();return '<section class="card panel activity-report">'+heading+'<p>Загрузка CRM-дел…</p></section>'}
+ if(activityCache.loading)return '<section class="card panel activity-report">'+heading+'<p>Загрузка CRM-дел…</p></section>';
+ if(activityCache.error)return '<section class="card panel activity-report">'+heading+'<p>'+esc(activityCache.error)+'</p><button class="btn btn-g btn-s" data-activity-refresh>Повторить</button></section>';
+ var report=activityCache.data;if(!report)return '';
+ var columns=[['overdue','Проср.','Срок до сегодняшнего дня'],['today','Сегодня','Срок сегодня'],['tomorrow','Завтра','Срок завтра'],['days3','2–3 дня','От послезавтра до третьего дня включительно'],['days7','4–7 дней','С четвёртого по седьмой день включительно'],['without','Сделки без дел','Активные сделки без доступных незавершённых CRM-дел'],['active','Активные','Активные сделки по ответственному сделки'],['activities','Дела','Все доступные незавершённые CRM-дела по ответственному дела']];
+ if(activityWho!=='all'&&!report.rows.some(function(row){return String(row.id)===activityWho}))activityWho='all';
+ var rows=report.rows.filter(function(row){return activityWho==='all'||String(row.id)===activityWho}),totals={};columns.forEach(function(c){totals[c[0]]=0});
+ function cells(counts){return columns.map(function(c){var value=counts[c[0]];return '<td class="num '+(!value?'activity-zero':(['overdue','today','days3','without'].indexOf(c[0])>=0?'activity-risk':['days7'].indexOf(c[0])>=0?'activity-warn':''))+'">'+fmt(value)+'</td>'}).join('')}
+ var body=rows.map(function(row){columns.forEach(function(c){totals[c[0]]+=row.counts[c[0]]});return '<tr><td><b>'+esc(row.name)+'</b></td>'+cells(row.counts)+'</tr>'}).join('')||'<tr><td class="empty" colspan="9">Нет активных сделок и незавершённых дел</td></tr>';
+ var controls='<div class="activity-controls"><label>Ответственный<select class="inp" data-activity-who><option value="all">Все ответственные</option>'+report.rows.map(function(row){return '<option value="'+row.id+'"'+(activityWho===String(row.id)?' selected':'')+'>'+esc(row.name)+'</option>'}).join('')+'</select></label><span>На '+dRu(report.asOf)+' · Ответственных: '+rows.length+'</span><button class="btn btn-g btn-s" data-activity-refresh>Обновить</button></div>';
+ return '<section class="card panel activity-report">'+heading+controls+'<div class="tw"><table><thead><tr><th>Ответственный</th>'+columns.map(function(c){return '<th class="num" title="'+esc(c[2])+'">'+c[1]+'</th>'}).join('')+'</tr></thead><tbody>'+body+'</tbody><tfoot><tr><td><b>Итого</b></td>'+cells(totals)+'</tr></tfoot></table></div><p class="activity-note">Текущее состояние, независимо от периода выше. Интервалы сроков не пересекаются. В «Дела» также входят дела без срока и со сроком позже семи дней. Сделки считаются по ответственному сделки, дела — по ответственному дела.</p></section>';
+}
 
 var listState={limit:50};
 function renderList(kind,q){
+  var activityReportHtml=kind==='tasks'?renderActivityReport():'';
   if(kind==='tasks'&&!ensureTaskPage(q))return;
   var L=LISTS[kind],rows=kind==='tasks'?taskCache.rows:L.rows(q),search=kind==='tasks'?'':(q.q||'').toLowerCase();
   if(search)rows=rows.filter(function(r){return L.text(r).toLowerCase().indexOf(search)>=0});
   var historyNote=kind==='leads'&&q.historyStage?'<p class="funnel-history-note">Сделки, побывавшие на этапе «'+esc(((live.stageNames||{})[q.category]||{})[q.historyStage]||q.historyStage)+'». В таблице показана их текущая стадия.</p>':'';
+  if(kind==='leads'&&q.transitionFrom&&q.transitionTo){var stageNames=(live.stageNames||{})[q.category]||{};historyNote='<p class="funnel-history-note">Сделки, перешедшие из «'+esc(stageNames[q.transitionFrom]||q.transitionFrom)+'» в «'+esc(stageNames[q.transitionTo]||q.transitionTo)+'». В таблице показана текущая стадия.</p>'}
   var fl=L.filters.map(function(f){return '<select class="inp" data-filter="'+f.k+'"><option value="">'+f.lb+'</option>'+f.opts.map(function(o){return '<option value="'+esc(o[0])+'"'+(q[f.k]===o[0]?' selected':'')+'>'+esc(o[1])+'</option>'}).join('')+'</select>'}).join('');
   var values=kind==='tasks'?[['Всего',fmt(taskCache.summary.total)],['Просрочено',fmt(taskCache.summary.overdue)],['Выполнено',fmt(taskCache.summary.done)]]:(L.sum?L.sum(rows):[]);
   var sum=values.length?'<div class="sum-row">'+values.map(function(s){return '<div class="card sum"><small>'+s[0]+'</small><b>'+s[1]+'</b></div>'}).join('')+'</div>':'';
   var shown=kind==='tasks'?rows:rows.slice(0,listState.limit);
-  app.innerHTML='<div class="crumbs"><a data-go="#/">Панель управления</a> › <span>'+L.crumb+'</span></div>'+
-   '<div class="page-h"><h1>'+L.title+' <span class="cnt">'+fmt(kind==='tasks'?taskCache.summary.total:rows.length)+'</span></h1><span class="badge b-gray">'+(L.noPeriod?'Текущее состояние на '+dRu(TODAY):P().label)+'</span><div class="spacer" style="flex:1"></div><button class="btn btn-p" data-create="'+L.create+'">'+ico('i-plus')+'Добавить</button></div>'+historyNote+sum+
+  app.innerHTML=activityReportHtml+'<div class="crumbs"><a data-go="#/">Панель управления</a> › <span>'+L.crumb+'</span></div>'+
+   '<div class="page-h"><h1>'+L.title+' <span class="cnt">'+fmt(kind==='tasks'?taskCache.summary.total:rows.length)+'</span></h1><span class="badge b-gray">'+(L.noPeriod?'Текущее состояние на '+dRu(TODAY):P().label)+'</span><div class="spacer" style="flex:1"></div></div>'+historyNote+sum+
    '<div class="card"><div class="filters"><label class="inp search">'+ico('i-search')+'<input id="lsearch" placeholder="Поиск…" value="'+esc(q.q||'')+'"></label>'+fl+(Object.keys(q).length?'<button class="btn btn-o" data-go="#/'+kind+'">Сбросить</button>':'')+'</div>'+
    '<div class="tw"><table><thead><tr>'+L.head.map(function(h){return '<th>'+h+'</th>'}).join('')+'</tr></thead><tbody>'+(shown.length?shown.map(L.row).join(''):'<tr><td colspan="'+L.head.length+'" class="empty">Ничего не найдено</td></tr>')+'</tbody></table></div>'+
    (kind==='tasks'?(taskCache.hasMore?'<div class="more"><button class="btn btn-g" data-task-more>Показать ещё</button></div>':''):rows.length>shown.length?'<div class="more"><button class="btn btn-g" data-more>Показать ещё ('+(rows.length-shown.length)+')</button></div>':'')+'</div>';
@@ -598,7 +644,7 @@ function renderEmployee(id){
   if(e.sales)stats.push(['Сделки за период',leads.length],['Успешные',sold.length],['Сумма успешных сделок',mln(sold.reduce(function(a,l){return a+l.amount},0))+' млн ₸']);
   if(e.svc)stats.push(['Обращения',svc.length],['Записей на сервис',svc.filter(function(s){return s.status==='done'}).length]);
   app.innerHTML='<div class="crumbs"><a data-go="#/">Панель управления</a> › <a data-go="#/staff">Эффективность</a> › <span>'+esc(e.name)+'</span></div>'+
-   '<div class="card emp-head">'+ava(e,'lg')+'<div style="flex:1;min-width:180px"><h1>'+esc(e.full)+'</h1><p>'+esc(e.role)+'</p></div><button class="btn btn-p" data-create="task" data-who="'+id+'">'+ico('i-plus')+'Поставить задачу</button>'+(e.sales?'<button class="btn btn-g" data-go="#/sales?mgr='+id+'">Продажи сотрудника</button>':'')+(e.svc?'<button class="btn btn-g" data-go="#/service?mgr='+id+'">Обращения</button>':'')+'</div>'+
+   '<div class="card emp-head">'+ava(e,'lg')+'<div style="flex:1;min-width:180px"><h1>'+esc(e.full)+'</h1><p>'+esc(e.role)+'</p></div>'+(e.sales?'<button class="btn btn-g" data-go="#/sales?mgr='+id+'">Продажи сотрудника</button>':'')+(e.svc?'<button class="btn btn-g" data-go="#/service?mgr='+id+'">Обращения</button>':'')+'</div>'+
    '<div class="sum-row">'+stats.map(function(s){return '<div class="card sum"><small>'+s[0]+'</small><b>'+s[1]+'</b></div>'}).join('')+'</div>'+
    '<div class="card tasks-card"><div class="ph">'+ico('i-clock')+'<h2>Задачи сотрудника</h2></div><div class="tw"><table><thead><tr><th></th><th>Задача</th><th>Исполнитель</th><th>Срок</th><th>Статус</th></tr></thead><tbody>'+tasks.map(taskRow).join('')+'</tbody></table></div>'+(taskCache.hasMore?'<div class="more"><button class="btn btn-g" data-task-more>Показать ещё</button></div>':'')+'</div>';
 }
@@ -625,28 +671,26 @@ function leadCard(id){var d=DB.leads.find(function(r){return r.id===id});if(!d)r
 function svcCard(id){var d=DB.service.find(function(r){return r.id===id});if(!d)return;openModal('Заявка в сервис','<div class="kv"><span>Название</span><b>'+esc(d.client)+'</b><span>Статус</span><div>'+esc(SVC_ST[d.status][0])+'</div><span>Ответственный</span><div>'+esc(EM[d.mgr].name)+'</div><span>Создана</span><div>'+dRu(d.date)+'</div></div>','<a class="btn btn-p" href="/crm/deal/details/'+Number(id.slice(1))+'/" target="_blank" rel="noopener">Открыть в Bitrix</a><button class="btn btn-o" data-close>Закрыть</button>')}
 
 /* ================= MENUS & EVENTS ================= */
-var createMenu=document.getElementById('createMenu');
-function closeMenus(){createMenu.classList.remove('open')}
-document.getElementById('createBtn').addEventListener('click',function(e){e.stopPropagation();createMenu.classList.toggle('open')});
+function closeMenus(){}
 
 document.addEventListener('click',function(e){
-  var t=e.target.closest('[data-period-open],[data-period],[data-create],[data-toggle],[data-lead],[data-svc],[data-more],[data-task-more],[data-funnel-expand],[data-funnel-pick],[data-close],[data-go]');
+  var t=e.target.closest('[data-lead],[data-svc],[data-more],[data-task-more],[data-funnel-expand],[data-funnel-pick],[data-activity-refresh],[data-close],[data-go]');
   if(!t){closeMenus();return}
   closeMenus();
-  if(t.hasAttribute('data-create')||t.hasAttribute('data-toggle')){toast('Первая версия работает только на чтение. Изменения выполняйте в Bitrix.');return}
   if(t.hasAttribute('data-lead')){leadCard(t.getAttribute('data-lead'));return}
   if(t.hasAttribute('data-svc')){svcCard(t.getAttribute('data-svc'));return}
   if(t.hasAttribute('data-task-more')){var route=parseHash();requestTaskPage(route.path[0]==='employee'?{who:route.path[1]}:route.q,true);return}
   if(t.hasAttribute('data-funnel-expand')){funnelExpanded=!funnelExpanded;render();return}
   if(t.hasAttribute('data-funnel-pick')){funnelChoice=t.getAttribute('data-funnel-pick');funnelExpanded=false;render();return}
+  if(t.hasAttribute('data-activity-refresh')){activityCache.key=null;render();return}
   if(t.hasAttribute('data-more')){listState.limit+=100;render();return}
   if(t.hasAttribute('data-close')){closeModal();return}
   if(t.hasAttribute('data-go')){closeModal();listState.limit=50;go(t.getAttribute('data-go'))}
 });
-document.addEventListener('change',function(e){if(e.target.hasAttribute('data-lead-reason')){leadReason=e.target.value;render();return}if(e.target.hasAttribute('data-lead-outcome')){leadOutcome=e.target.value;render();return}if(e.target.hasAttribute('data-funnel-select')){funnelChoice=e.target.value;funnelExpanded=false;render();return}var f=e.target.getAttribute&&e.target.getAttribute('data-filter');if(f)setQ(f,e.target.value)});
+document.addEventListener('change',function(e){if(e.target.hasAttribute('data-activity-who')){activityWho=e.target.value;render();return}if(e.target.hasAttribute('data-lead-reason')){leadReason=e.target.value;render();return}if(e.target.hasAttribute('data-lead-outcome')){leadOutcome=e.target.value;render();return}if(e.target.hasAttribute('data-funnel-select')){funnelChoice=e.target.value;funnelExpanded=false;render();return}var f=e.target.getAttribute&&e.target.getAttribute('data-filter');if(f)setQ(f,e.target.value)});
 
 
-function applyPipelines(ids){selectedPipelines=ids.slice();funnelChoice=ids.filter(function(id){return id!==7}).length===1?String(ids.filter(function(id){return id!==7})[0]):'selected';funnelExpanded=false;DB.leads=allDeals.filter(function(r){return ids.indexOf(r.category)>=0});DB.service=allService.filter(function(r){return ids.indexOf(r.category)>=0});rebuildStages();LISTS.leads.filters[1].opts=STAGES.map(function(s,i){return [String(i),s]});document.getElementById('pipelineLbl').textContent=ids.length===PIPELINES.length?'Все воронки':'Воронки: '+ids.length;listState.limit=50;var route=parseHash();delete route.q.stage;delete route.q.historyStage;var qs=Object.keys(route.q).map(function(k){return k+'='+encodeURIComponent(route.q[k])}).join('&');go('#/'+route.path.join('/')+(qs?'?'+qs:''));}
+function applyPipelines(ids){selectedPipelines=ids.slice();funnelChoice=ids.filter(function(id){return id!==7}).length===1?String(ids.filter(function(id){return id!==7})[0]):'selected';funnelExpanded=false;DB.leads=allDeals.filter(function(r){return ids.indexOf(r.category)>=0});DB.service=allService.filter(function(r){return ids.indexOf(r.category)>=0});rebuildStages();LISTS.leads.filters[1].opts=STAGES.map(function(s,i){return [String(i),s]});document.getElementById('pipelineLbl').textContent=ids.length===PIPELINES.length?'Все воронки':'Воронки: '+ids.length;listState.limit=50;var route=parseHash();delete route.q.stage;delete route.q.historyStage;delete route.q.transitionFrom;delete route.q.transitionTo;var qs=Object.keys(route.q).map(function(k){return k+'='+encodeURIComponent(route.q[k])}).join('&');go('#/'+route.path.join('/')+(qs?'?'+qs:''));}
 function openPipelines(){closeMenus();openModal('Воронки','<p style="color:var(--muted)">Задачи показываются по вашим правам Bitrix и не зависят от воронок.</p>'+PIPELINES.map(function(p){return '<label style="display:flex;gap:10px;align-items:center;margin:12px 0"><input type="checkbox" name="live-pipeline" value="'+p.id+'" '+(selectedPipelines.indexOf(p.id)>=0?'checked':'')+'>'+esc(p.name)+'</label>'}).join(''),'<button class="btn btn-g" id="pipelineAll">Все</button><button class="btn btn-p" id="pipelineApply">Применить</button>',function(){document.getElementById('pipelineAll').onclick=function(){document.querySelectorAll('[name="live-pipeline"]').forEach(function(el){el.checked=true})};document.getElementById('pipelineApply').onclick=function(){var ids=Array.from(document.querySelectorAll('[name="live-pipeline"]:checked')).map(function(el){return Number(el.value)});applyPipelines(ids);closeModal();toast('Фильтр воронок применён')};})}
 document.getElementById('pipelineBtn').addEventListener('click',openPipelines);
 

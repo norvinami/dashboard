@@ -10,6 +10,18 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     dashboardFail('Разрешено только чтение данных.', 405);
 }
 try {
+    if (isset($_GET['activities'])) {
+        if (!\Bitrix\Main\Loader::includeModule('crm')) { dashboardFail('Модуль CRM недоступен.'); }
+        $categories=null;
+        if (isset($_GET['categories'])) {
+            if (!is_string($_GET['categories']) || !preg_match('/^(?:[0-9]+(?:,[0-9]+)*)?$/D',$_GET['categories']) || strlen($_GET['categories'])>1000) { dashboardFail('Некорректный фильтр воронок.',400); }
+            $categories=$_GET['categories']===''?[]:array_values(array_unique(array_map('intval',explode(',',$_GET['categories']))));
+        }
+        require_once __DIR__.'/lead-data.php';
+        require_once __DIR__.'/activity-data.php';
+        echo json_encode(dashboardReadActivities($categories,new DateTimeImmutable('today')),JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE|JSON_THROW_ON_ERROR);
+        exit;
+    }
     if (isset($_GET['tasks'])) {
         if (!\Bitrix\Main\Loader::includeModule('tasks')) { dashboardFail('Модуль задач недоступен.'); }
         require_once __DIR__.'/task-data.php';
