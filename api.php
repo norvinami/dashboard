@@ -77,14 +77,19 @@ try {
             $stageSemantics[$category['id']][$code] = $semantic;
         }
     }
+    require_once __DIR__.'/lead-data.php';
+    require_once __DIR__.'/deal-fields.php';
+    $dealFields=dashboardDealFields();
+    $customSelect=[];
+    foreach ($dealFields as $field) { if (!isset($field['error'])) { $customSelect[]=$field['code']; } }
     // CRM permissions are checked as logged-in user 5; no elevated service identity.
     $result = CCrmDeal::GetListEx(
         ['ID' => 'ASC'],
         ['>=DATE_CREATE' => $start->format('d.m.Y').' 00:00:00', '<=DATE_CREATE' => $end->format('d.m.Y').' 23:59:59', 'CHECK_PERMISSIONS' => 'Y'],
         false,
         ['nTopCount' => 5001],
-        ['ID', 'TITLE', 'CATEGORY_ID', 'STAGE_ID', 'STAGE_SEMANTIC_ID', 'SOURCE_ID',
-         'ASSIGNED_BY_ID', 'DATE_CREATE', 'OPPORTUNITY', 'CURRENCY_ID']
+        array_merge($customSelect, ['ID', 'TITLE', 'CATEGORY_ID', 'STAGE_ID', 'STAGE_SEMANTIC_ID', 'SOURCE_ID',
+         'ASSIGNED_BY_ID', 'DATE_CREATE', 'OPPORTUNITY', 'CURRENCY_ID'])
     );
     if (!is_object($result)) {
         dashboardFail('Не удалось прочитать сделки CRM.');
@@ -109,6 +114,10 @@ try {
             'stageId' => $stage, 'stageName' => (string)($stages[$category][$stage] ?? $stage),
             'semantic' => $semantic, 'source' => (string)$row['SOURCE_ID'],
             'manager' => (int)$row['ASSIGNED_BY_ID'], 'date' => date('Y-m-d', $timestamp),
+            'deferred' => dashboardDealIsDeferred($row,$dealFields['deferred']),
+            'model' => dashboardDealFieldValue($row,$dealFields['model']),
+            'reason' => dashboardDealFieldValue($row,$dealFields['reason']),
+            'cancelReason' => dashboardDealFieldValue($row,$dealFields['cancelReason']),
             'amount' => (float)$row['OPPORTUNITY'], 'currency' => (string)$row['CURRENCY_ID']
         ];
         if (count($deals) > 5000) {
@@ -147,6 +156,7 @@ try {
     }
     echo json_encode(['today' => $today->format('Y-m-d'), 'from' => $start->format('Y-m-d'),
         'range' => array_map(static fn($date) => $date->format('Y-m-d'), $range), 'leadStats' => $leadStats,
+        'dealFieldErrors' => array_map(static fn($field) => $field['error']??null,$dealFields),
         'categories' => $categories, 'stageOrder' => $stageOrder, 'stageNames' => $stages, 'stageSemantics' => $stageSemantics,
         'stageHistory' => $stageHistory, 'stageHistoryError' => $stageHistoryError, 'sources' => $sources, 'deals' => $deals,
         'tasks' => $taskPage['tasks'], 'taskSummary' => $taskPage['summary'], 'taskPage' => $taskPage, 'employees' => $employees],

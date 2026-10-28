@@ -215,7 +215,7 @@ tbody tr.cl:hover td{background:#f8fafd}
 
 .funnel-picker{display:flex;margin-bottom:12px}
 .funnel-picker .inp{width:100%;min-width:0;font-size:12px}
-.funnel-outcomes{display:flex;gap:8px;margin-top:12px}
+.funnel-outcomes{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
 .funnel-outcome{flex:1;display:flex;justify-content:space-between;align-items:center;border:0;border-radius:10px;padding:10px 12px;font:inherit;font-size:12px;cursor:pointer}
 .funnel-outcome.success{background:#edf8f0;color:#25864d}
 .funnel-outcome.failed{background:#fff0ef;color:#b84d47}
@@ -232,6 +232,7 @@ tbody tr.cl:hover td{background:#f8fafd}
 .lead-filters{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:18px}
 .lead-filters label{display:grid;gap:5px;font-size:12px;color:var(--ink2);min-width:190px}
 .lead-filters .inp{font-size:12px}
+.lead-picker{position:relative;min-width:250px;font-size:12px}.lead-picker summary{cursor:pointer;padding:12px;border:1px solid var(--line);border-radius:8px}.lead-options{position:absolute;z-index:5;top:100%;background:white;border:1px solid var(--line);border-radius:8px;padding:12px;box-shadow:0 8px 24px #0002;min-width:290px;max-height:280px;overflow:auto}.lead-options label{display:flex;align-items:center;gap:8px;padding:7px;min-width:0;color:var(--ink)}
 .lead-chart-row{margin-bottom:20px}
 .lead-chart-title{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px}
 .lead-chart-title span{font-size:12px;color:var(--ink2)}
@@ -336,7 +337,7 @@ var clock=new Date(),localToday=clock.getFullYear()+'-'+String(clock.getMonth()+
 dateFrom.value=dateQuery.get('from')||localToday.slice(0,7)+'-01';dateTo.value=dateQuery.get('to')||localToday;
 function validateDates(){dateTo.setCustomValidity(dateFrom.value&&dateTo.value&&dateFrom.value>dateTo.value?'Дата «по» должна быть не раньше даты «с».':'')}
 dateFrom.addEventListener('input',validateDates);dateTo.addEventListener('input',validateDates);
-document.getElementById('dateRangeForm').addEventListener('submit',function(e){validateDates();if(!this.reportValidity()){e.preventDefault();return}var filters={reason:leadReason||'all',result:leadOutcome||'all',funnel:funnelChoice||'selected'};if(Array.isArray(selectedPipelines))filters.pipelines=selectedPipelines.join(',');Object.keys(filters).forEach(function(name){var input=this.querySelector('[name="'+name+'"]');if(!input){input=document.createElement('input');input.type='hidden';input.name=name;this.appendChild(input)}input.value=filters[name]},this)});
+document.getElementById('dateRangeForm').addEventListener('submit',function(e){validateDates();if(!this.reportValidity()){e.preventDefault();return}var filters={reason:Array.isArray(leadReasons)?leadReasons.join(','):'default',result:leadOutcome||'all',funnel:funnelChoice||'selected'};if(Array.isArray(selectedPipelines))filters.pipelines=selectedPipelines.join(',');Object.keys(filters).forEach(function(name){var input=this.querySelector('[name="'+name+'"]');if(!input){input=document.createElement('input');input.type='hidden';input.name=name;this.appendChild(input)}input.value=filters[name]},this)});
 var live;
 try { var response=await fetch('api.php?'+new URLSearchParams({from:dateFrom.value,to:dateTo.value}),{credentials:'same-origin',cache:'no-store'}); live=await response.json(); if(!response.ok||live.error)throw new Error(live.error||'Нет доступа к данным'); }
 catch(error){app.textContent='Данные не загружены: '+error.message;return;}
@@ -369,8 +370,8 @@ async function requestTaskPage(q,more){
 }
 function ensureTaskPage(q){if(taskCache.key!==taskKey(q)){requestTaskPage(q,false);app.textContent='Загрузка задач…';return false}if(taskCache.loading){app.textContent='Загрузка задач…';return false}if(taskCache.error){app.textContent='Задачи не загружены: '+taskCache.error;return false}return !!taskCache.summary}
 var stageKeys=[],STAGES=[],STAGE1=[];
-var allDeals=live.deals.filter(function(d){return d.category!==7}).map(function(d){return {id:'D'+d.id,name:d.title,phone:categoryNames[d.category]||'—',src:SRC[d.source]?d.source:'__unknown',date:d.date,stageKey:d.category+':'+d.stageId,stageName:d.stageName,mgr:'e'+d.manager,model:categoryNames[d.category]||'—',exp:d.amount,amount:d.semantic==='S'?d.amount:0,won:d.semantic==='S',open:d.semantic==='P',failed:d.semantic==='F',stageId:d.stageId,category:d.category}});
-var allService=live.deals.filter(function(d){return d.category===7}).map(function(d){return {id:'D'+d.id,client:d.title,car:'—',work:'—',status:d.semantic==='S'?'done':d.semantic==='F'?'cancel':d.stageId==='C7:NEW'?'new':'in_work',date:d.date,mgr:'e'+d.manager,wo:null,category:7}});
+var allDeals=live.deals.filter(function(d){return d.category!==7}).map(function(d){return {id:'D'+d.id,deferred:d.deferred,name:d.title,phone:categoryNames[d.category]||'—',src:SRC[d.source]?d.source:'__unknown',date:d.date,stageKey:d.category+':'+d.stageId,stageName:d.stageName,mgr:'e'+d.manager,model:categoryNames[d.category]||'—',exp:d.amount,amount:d.semantic==='S'?d.amount:0,won:d.semantic==='S',open:d.semantic==='P',failed:d.semantic==='F',stageId:d.stageId,category:d.category}});
+var allService=live.deals.filter(function(d){return d.category===7}).map(function(d){return {id:'D'+d.id,client:d.title,car:d.model||'—',work:d.reason||'—',cancelReason:d.cancelReason||'—',status:d.semantic==='S'?'done':d.semantic==='F'?'cancel':d.stageId==='C7:NEW'?'new':'in_work',date:d.date,mgr:'e'+d.manager,wo:null,category:7}});
 function rebuildStages(){
  stageKeys=[];STAGES=[];
  DB.leads.forEach(function(d){if(stageKeys.indexOf(d.stageKey)<0){stageKeys.push(d.stageKey);STAGES.push((selectedPipelines.filter(function(id){return id!==7}).length>1?(categoryNames[d.category]+' · '):'')+d.stageName)}d.stage=stageKeys.indexOf(d.stageKey)});
@@ -394,6 +395,14 @@ function stageBadge(s){return '<span class="badge b-blue">'+esc(STAGE1[s]||'—'
 
 function inM(range){return function(r){return inRange(range,r.date)}}
 
+function serviceLeadSummary(){
+ var stats=live.leadStats;
+ if(!stats||stats.error)return {total:null,successful:null,error:stats&&stats.error||'Лиды недоступны'};
+ var total=0,successful=0;
+ Object.keys(stats.reasons||{}).forEach(function(id){if(stats.reasons[id].category===7){var d=stats.directions[id];total+=d.total;successful+=d.qualified+d.unconfirmed}});
+ return {total:total,successful:successful,error:null};
+}
+function serviceLeadNumber(){var value=serviceLeadSummary().successful;return value===null?'—':fmt(value)}
 function metrics(range){
   if(!range)return null;
   var f=inM(range),leads=DB.leads.filter(f),svc=DB.service.filter(f);
@@ -521,21 +530,25 @@ function renderFunnel(range){
  else if(!transitions.length){bars='<div class="empty">Не удалось определить порядок рабочих этапов.</div>'}
  var more=!live.stageHistoryError&&transitions.length>6?'<button class="btn btn-g btn-s funnel-more" data-funnel-expand aria-expanded="'+funnelExpanded+'">'+(funnelExpanded?'Свернуть':'Ещё стадий: '+(transitions.length-6))+'</button>':'';
  var outcomes='<div class="funnel-outcomes"><button class="funnel-outcome success" data-go="#/leads?category='+category+'&outcome=won"><span>Успешные</span><b>'+fmt(won)+'</b></button><button class="funnel-outcome failed" data-go="#/leads?category='+category+'&outcome=failed"><span>Проваленные</span><b>'+fmt(failed)+'</b></button></div>';
- var branchCards=history.branches.length?'<div class="funnel-branches">'+history.branches.map(function(branch){return '<button class="funnel-branch" data-go="#/leads?category='+category+'&sideStage='+encodeURIComponent(branch.id)+'" title="'+esc(branch.name)+'"><span>Отложено</span><b>'+fmt(branch.count)+'</b></button>'}).join('')+'</div>':'';
+ var deferredError=live.dealFieldErrors&&live.dealFieldErrors.deferred;
+ var branchCards=deferredError?'<p class="lead-note">'+esc(deferredError)+'</p>':'';
+ outcomes=outcomes.slice(0,-6)+'<button class="funnel-outcome" data-go="#/leads?category='+category+'&deferred=1"><span>Отложенные</span><b>'+ (deferredError?'—':fmt(rows.filter(function(d){return d.deferred===true}).length))+'</b></button></div>';
  return head+'<div class="fun-wrap"><div class="funnel">'+bars+more+'</div>'+donut(won,rows.length,150,16,'Доля<br>успешных',pct(won/rows.length*100))+'</div>'+outcomes+branchCards+'<p class="funnel-history-note">'+esc(note)+'</p>';
 }
 
-var leadReason=dateQuery.get('reason')||'all',leadOutcome=['all','qualified','successful','failed','open','unconfirmed'].indexOf(dateQuery.get('result'))>=0?dateQuery.get('result'):'all';
+var leadReasons=dateQuery.has('reason')&&dateQuery.get('reason')!=='default'?dateQuery.get('reason').split(',').filter(Boolean):null,leadOutcome=['all','qualified','successful','failed','open','unconfirmed'].indexOf(dateQuery.get('result'))>=0?dateQuery.get('result'):'all';
 function renderLeadChart(){
  var stats=live.leadStats;
  var header='<div class="ph">'+ico('i-users')+'<div><h2>Обращения из лидов</h2><p>Все причины обращения и результаты лидов</p></div>'+chip()+'</div>';
  if(!stats||stats.error)return header+'<div class="empty">'+esc(stats&&stats.error||'Данные лидов недоступны')+'</div>';
  var reasons=stats.reasons||{},keys=Object.keys(reasons);
- if(!Object.prototype.hasOwnProperty.call(reasons,leadReason))leadReason='all';
+ if(leadReasons===null)leadReasons=keys.filter(function(id){return reasons[id].category===0||reasons[id].category===7});
+ if(leadReasons.indexOf('all')>=0)leadReasons=keys.slice();
+ leadReasons=leadReasons.filter(function(id){return Object.prototype.hasOwnProperty.call(reasons,id)});
  var outcomes=[['qualified','Целевые'],['successful','Успешные'],['failed','Неуспешные'],['open','В работе'],['unconfirmed','Не подтверждено']];
- var controls='<div class="lead-filters"><label>Причина обращения<select class="inp" data-lead-reason><option value="all">Все причины</option>'+keys.map(function(id){return '<option value="'+esc(id)+'"'+(leadReason===id?' selected':'')+'>'+esc(reasons[id].label)+'</option>'}).join('')+'</select></label><label>Результат<select class="inp" data-lead-outcome><option value="all">Все результаты</option>'+outcomes.map(function(o){return '<option value="'+o[0]+'"'+(leadOutcome===o[0]?' selected':'')+'>'+o[1]+'</option>'}).join('')+'</select></label></div>';
+ var controls='<div class="lead-filters"><details class="lead-picker"><summary>Причины обращения: '+leadReasons.length+' из '+keys.length+'</summary><div class="lead-options">'+keys.map(function(id){return '<label><input type="checkbox" data-lead-reason value="'+esc(id)+'"'+(leadReasons.indexOf(id)>=0?' checked':'')+'> '+esc(reasons[id].label)+'</label>'}).join('')+'</div></details><label>Результат<select class="inp" data-lead-outcome><option value="all">Все результаты</option>'+outcomes.map(function(o){return '<option value="'+o[0]+'"'+(leadOutcome===o[0]?' selected':'')+'>'+o[1]+'</option>'}).join('')+'</select></label></div>';
  var total=0;
- var chart=keys.filter(function(id){return leadReason==='all'||id===leadReason}).map(function(id){
+ var chart=keys.filter(function(id){return leadReasons.indexOf(id)>=0}).map(function(id){
   var d=stats.directions[id],known=reasons[id].category!==null;
   var rowOutcomes=outcomes.filter(function(o){return known?o[0]!=='successful':o[0]!=='qualified'&&o[0]!=='unconfirmed'});
   var visible=rowOutcomes.filter(function(o){return leadOutcome==='all'||o[0]===leadOutcome});
@@ -543,7 +556,7 @@ function renderLeadChart(){
   var summary='Всего '+fmt(d.total)+(known?' · целевых '+fmt(d.qualified):' · успешных '+fmt(d.successful))+' · '+(d.total?pct((known?d.qualified:d.successful)/d.total*100):'—');
   return '<div class="lead-chart-row"><div class="lead-chart-title"><b>'+esc(reasons[id].label)+'</b><span>'+summary+'</span></div><div class="lead-stacked" role="img" aria-label="'+esc(reasons[id].label+': '+summary)+'">'+visible.map(function(o){return d[o[0]]?'<div class="lead-segment '+o[0]+'" style="width:'+d[o[0]]/Math.max(d.total,1)*100+'%" title="'+o[1]+': '+fmt(d[o[0]])+'"><span>'+fmt(d[o[0]])+'</span></div>':''}).join('')+'</div><div class="lead-row-counts">'+visible.map(function(o){return '<span><i class="lead-dot '+o[0]+'"></i>'+o[1]+' <b>'+fmt(d[o[0]])+'</b></span>'}).join('')+'</div></div>';
  }).join('');
- return header+controls+'<div class="lead-chart">'+chart+'</div><div class="lead-totals"><span>Всего обращений <b>'+fmt(total)+'</b></span></div><p class="lead-note">Все варианты списка, включая причины без обращений. Период — дата создания лида. Для новых авто и сервиса конверсия — доля целевых со сделкой нужной воронки; не подтверждено — успешный лид без доступной связи с ней. Для остальных причин — доля успешных лидов по статусу, без проверки воронки. Лиды в работе не считаются отказами.'+(stats.unassigned?' Без однозначной причины обращения: '+fmt(stats.unassigned)+'.':'')+'</p>';
+ return header+controls+'<div class="lead-chart">'+(chart||'<div class="empty">Выберите причины обращения</div>')+'</div><div class="lead-totals"><span>Всего обращений <b>'+fmt(total)+'</b></span></div><p class="lead-note">Все варианты списка, включая причины без обращений. Период — дата создания лида. Для новых авто и сервиса конверсия — доля целевых со сделкой нужной воронки; не подтверждено — успешный лид без доступной связи с ней. Для остальных причин — доля успешных лидов по статусу, без проверки воронки. Лиды в работе не считаются отказами.'+(stats.unassigned?' Без однозначной причины обращения: '+fmt(stats.unassigned)+'.':'')+'</p>';
 }
 
 function renderDash(){
@@ -552,13 +565,13 @@ function renderDash(){
   var K=[
     {ic:'i-coins',lb:'Сумма успешных сделок',v:mln(m.rev),u:'млн ₸',d:delta(m.rev,pv&&pv.rev),go:'#/sales'},
     {ic:'i-car',lb:'Успешные сделки',v:fmt(m.sales),d:delta(m.sales,pv&&pv.sales),go:'#/sales'},
-    {ic:'i-wrench',lb:'Сервис<br>(записи)',v:fmt(m.wo),d:delta(m.wo,pv&&pv.wo),go:'#/service?wo=1'},
+    {ic:'i-wrench',lb:'Сервис<br>(успешные лиды)',v:serviceLeadNumber(),d:'',go:'#/service'},
     {ic:'i-users',lb:'Новые сделки',v:fmt(m.leads),d:delta(m.leads,pv&&pv.leads),go:'#/leads'},
     {ic:'i-hand',lb:'Активные сделки',v:fmt(m.deals),d:delta(m.deals,pv&&pv.deals),go:'#/deals'},
     {ic:'i-bell',lb:'Просроченные<br>задачи',v:fmt(overdue),d:'<span class="delta na">Текущее состояние</span>',go:'#/tasks?st=overdue',warn:1}];
   var kh=K.map(function(k){return '<button class="card kpi'+(k.warn?' warn':'')+'" data-go="'+k.go+'"><div class="ic">'+ico(k.ic)+'</div><div style="min-width:0"><div class="lb">'+k.lb+'</div><div class="val">'+k.v+(k.u?'<small>'+k.u+'</small>':'')+'</div>'+k.d+'<div class="cmp">к предыдущему периоду</div></div></button>'}).join('');
 
-  var sconv=m.svcReq?m.svcDone/m.svcReq*100:0;
+  var serviceLeads=serviceLeadSummary(),sconv=serviceLeads.total?serviceLeads.successful/serviceLeads.total*100:0;
 
   var sh=m.src.filter(function(r){return r.leads!==0||r.deals!==0||r.sales!==0||r.rev!==0}).map(function(r){return '<tr class="cl" data-go="#/leads?source='+r.s.id+'"><td>'+srcCell(r.s.id)+'</td><td class="num">'+r.leads+'</td><td class="num">'+r.deals+'</td><td class="num">'+r.sales+'</td><td class="r" style="white-space:nowrap">'+mln(r.rev)+' млн ₸</td></tr>'}).join('')||'<tr><td colspan="5" class="empty">Нет данных за выбранный период</td></tr>';
 
@@ -571,8 +584,8 @@ function renderDash(){
   '<section class="card panel lead-panel">'+renderLeadChart()+'</section>'+
   '<section class="mid">'+
    '<div class="card panel p-fun">'+renderFunnel(per.range)+'</div>'+
-   '<div class="card panel"><div class="ph">'+ico('i-car')+'<div><h2>Сервис</h2><p>Доля заявок, завершившихся записью</p></div>'+chip()+'</div><div class="svc">'+donut(m.svcDone,m.svcReq,170,20,'Доля<br>успешных',Math.round(sconv)+'%')+
-     '<div class="svc-stats"><div class="stat" data-go="#/service"><span>Обращения в сервис</span><b>'+fmt(m.svcReq)+'</b></div><div class="stat" data-go="#/service?st=done"><span>Записи на сервис</span><b>'+fmt(m.svcDone)+'</b></div><div class="svc-bar"><i style="width:'+sconv+'%"></i></div><div class="stat" data-go="#/service?st=in_work"><span>В работе сейчас</span><b>'+fmt(DB.service.filter(function(s){return s.status==='in_work'&&inRange(per.range,s.date)}).length)+'</b></div></div></div></div>'+
+   '<div class="card panel"><div class="ph">'+ico('i-car')+'<div><h2>Сервис</h2><p>Успешные лиды с причиной «Сервис»</p></div>'+chip()+'</div><div class="svc">'+donut(serviceLeads.successful||0,serviceLeads.total||0,170,20,'Успешные<br>лиды',serviceLeadNumber())+
+     '<div class="svc-stats"><div class="stat" data-go="#/service"><span>Успешные лиды в сервис</span><b>'+serviceLeadNumber()+'</b></div><div class="stat" data-go="#/service?st=done"><span>Записи на сервис</span><b>'+fmt(m.svcDone)+'</b></div><div class="lead-note">'+(serviceLeads.error?esc(serviceLeads.error):'Доля успешных среди лидов с причиной «Сервис»: '+pct(sconv))+'.</div><div class="svc-bar"><i style="width:'+sconv+'%"></i></div><div class="stat" data-go="#/service?st=in_work"><span>В работе сейчас</span><b>'+fmt(DB.service.filter(function(s){return s.status==='in_work'&&inRange(per.range,s.date)}).length)+'</b></div></div></div></div>'+
    '<div class="card panel"><div class="ph">'+ico('i-bars')+'<h2>Источники клиентов</h2>'+chip()+'</div><div class="tw"><table><thead><tr><th>Источник</th><th class="num">Сделки</th><th class="num">В работе</th><th class="num">Успешные</th><th class="r">Сумма успешных сделок</th></tr></thead><tbody>'+sh+'</tbody></table></div></div>'+
   '</section>'+
   '<section class="card tasks-card"><div class="ph">'+ico('i-clock')+'<h2>Просроченные задачи</h2></div><div class="tw"><table><thead><tr><th>Сотрудник</th><th>Должность</th><th class="num">Всего задач</th><th class="num">Просрочено</th></tr></thead><tbody>'+oh+'</tbody></table></div></section>';
@@ -581,7 +594,7 @@ function renderDash(){
 /* ================= LIST PAGES ================= */
 var LISTS={
  leads:{title:'Обращения и сделки',crumb:'Клиенты',create:'lead',
-   rows:function(q){var ms=P().range;return DB.leads.filter(function(l){return inRange(ms,l.date)&&(q.category!==undefined?l.category===Number(q.category):true)&&(q.outcome==='won'?l.won:q.outcome==='failed'?l.failed:true)&&(q.transitionFrom&&q.transitionTo?dealPassedCumulativeTransition(l,l.category,q.transitionFrom,q.transitionTo):true)&&(q.cumulativeStage?dealReachedCumulativeStage(l,l.category,q.cumulativeStage):true)&&(q.sideStage?l.stageId===q.sideStage:true)&&(q.historyStage?!!dealStageVisits(l)[q.historyStage]:true)&&(q.source?l.src===q.source:true)&&(q.stage!==undefined&&q.stage!==''?l.stage===+q.stage:true)})},
+   rows:function(q){var ms=P().range;return DB.leads.filter(function(l){return inRange(ms,l.date)&&(q.category!==undefined?l.category===Number(q.category):true)&&(q.outcome==='won'?l.won:q.outcome==='failed'?l.failed:true)&&(q.transitionFrom&&q.transitionTo?dealPassedCumulativeTransition(l,l.category,q.transitionFrom,q.transitionTo):true)&&(q.cumulativeStage?dealReachedCumulativeStage(l,l.category,q.cumulativeStage):true)&&(q.sideStage?l.stageId===q.sideStage:true)&&(q.deferred?l.deferred===true:true)&&(q.historyStage?!!dealStageVisits(l)[q.historyStage]:true)&&(q.source?l.src===q.source:true)&&(q.stage!==undefined&&q.stage!==''?l.stage===+q.stage:true)})},
    filters:[{k:'source',lb:'Все источники',opts:SOURCES.map(function(s){return [s.id,s.name]})},{k:'stage',lb:'Все этапы',opts:STAGES.map(function(s,i){return [String(i),'Стадия: '+s]})}],
    head:['Сделка','Воронка','Источник','Этап','Менеджер','Дата'],
    row:function(l){return '<tr class="cl" data-lead="'+l.id+'"><td><b>'+esc(l.name)+'</b></td><td style="white-space:nowrap">'+esc(l.phone)+'</td><td>'+srcCell(l.src)+'</td><td>'+stageBadge(l.stage)+'</td><td>'+personCell(l.mgr)+'</td><td>'+dRu(l.date)+'</td></tr>'},
@@ -603,10 +616,10 @@ var LISTS={
  service:{title:'Сервис',crumb:'Сервис',create:'service',
    rows:function(q){var ms=P().range;return DB.service.filter(function(s){return inRange(ms,s.date)&&(q.st?s.status===q.st:true)&&(q.wo?s.status==='done':true)&&(q.mgr?s.mgr===q.mgr:true)})},
    filters:[{k:'st',lb:'Все статусы',opts:Object.keys(SVC_ST).map(function(k){return [k,SVC_ST[k][0]]})},{k:'mgr',lb:'Все ответственные',opts:SVC_EMP.map(function(id){return [id,EM[id].name]})}],
-   head:['Заявка','Автомобиль','Вид работ','Заказ-наряд','Статус','Ответственный','Дата'],
-   row:function(s){return '<tr class="cl" data-svc="'+s.id+'"><td><b>'+esc(s.client)+'</b></td><td style="white-space:nowrap">'+esc(s.car)+'</td><td>'+esc(s.work)+'</td><td>'+(s.wo||'—')+'</td><td><span class="badge '+SVC_ST[s.status][1]+'">'+SVC_ST[s.status][0]+'</span></td><td>'+personCell(s.mgr)+'</td><td>'+dRu(s.date)+'</td></tr>'},
-   text:function(s){return s.client+' '+s.car+' '+s.work+' '+(s.wo||'')},
-   sum:function(r){var d=r.filter(function(s){return s.status==='done'}).length;return [['Обращений',fmt(r.length)],['Записей',fmt(d)]]}},
+   head:['Заявка','Модель','Причина обращения','Запись не состоялась по причине','Статус','Ответственный','Дата'],
+   row:function(s){return '<tr class="cl" data-svc="'+s.id+'"><td><b>'+esc(s.client)+'</b></td><td style="white-space:nowrap">'+esc(s.car)+'</td><td>'+esc(s.work)+'</td><td>'+esc(s.cancelReason)+'</td><td><span class="badge '+SVC_ST[s.status][1]+'">'+SVC_ST[s.status][0]+'</span></td><td>'+personCell(s.mgr)+'</td><td>'+dRu(s.date)+'</td></tr>'},
+   text:function(s){return s.client+' '+s.car+' '+s.work+' '+s.cancelReason},
+   sum:function(r){var d=r.filter(function(s){return s.status==='done'}).length;return [['Успешные лиды в сервис',serviceLeadNumber()],['Сделок в таблице',fmt(r.length)],['Записей',fmt(d)]]}},
  tasks:{title:'Задачи',crumb:'Задачи',create:'task',noPeriod:1,
    rows:function(q){return taskCache.rows},
    filters:[{k:'st',lb:'Все задачи',opts:[['overdue','Просроченные'],['open','В срок'],['done','Выполненные']]},{k:'who',lb:'Все сотрудники',opts:EMP.map(function(e){return [e.id,e.name]})}],
@@ -649,13 +662,15 @@ function renderList(kind,q){
   var historyNote=kind==='leads'&&q.historyStage?'<p class="funnel-history-note">Сделки, побывавшие на этапе «'+esc(((live.stageNames||{})[q.category]||{})[q.historyStage]||q.historyStage)+'». В таблице показана их текущая стадия.</p>':'';
   if(kind==='leads'&&q.transitionFrom&&q.transitionTo){var stageNames=(live.stageNames||{})[q.category]||{};historyNote='<p class="funnel-history-note">Сделки, достигшие этапа «'+esc(stageNames[q.transitionTo]||q.transitionTo)+'» с учётом пропущенных основных этапов. В таблице показана текущая стадия.</p>'}
   if(kind==='leads'&&q.cumulativeStage)historyNote='<p class="funnel-history-note">Сделки, достигшие выбранного основного этапа с учётом пропущенных этапов. В таблице показана текущая стадия.</p>';
+  if(kind==='leads'&&q.deferred)historyNote='<p class="funnel-history-note">Сделки со значением «Отложенные» в поле «Статус сделки».</p>';
   if(kind==='leads'&&q.sideStage)historyNote='<p class="funnel-history-note">Сделки, сейчас находящиеся на отложенном этапе.</p>';
   var fl=L.filters.map(function(f){return '<select class="inp" data-filter="'+f.k+'"><option value="">'+f.lb+'</option>'+f.opts.map(function(o){return '<option value="'+esc(o[0])+'"'+(q[f.k]===o[0]?' selected':'')+'>'+esc(o[1])+'</option>'}).join('')+'</select>'}).join('');
+  if(kind==='service'){var warnings=['model','reason','cancelReason'].map(function(key){return live.dealFieldErrors&&live.dealFieldErrors[key]}).filter(Boolean);if(warnings.length)historyNote+='<p class="lead-note">'+esc(warnings.join(' '))+'</p>';if(serviceLeadSummary().error)historyNote+='<p class="lead-note">'+esc(serviceLeadSummary().error)+'</p>';}
   var values=kind==='tasks'?[['Всего',fmt(taskCache.summary.total)],['Просрочено',fmt(taskCache.summary.overdue)],['Выполнено',fmt(taskCache.summary.done)]]:(L.sum?L.sum(rows):[]);
   var sum=values.length?'<div class="sum-row">'+values.map(function(s){return '<div class="card sum"><small>'+s[0]+'</small><b>'+s[1]+'</b></div>'}).join('')+'</div>':'';
   var shown=kind==='tasks'?rows:rows.slice(0,listState.limit);
   app.innerHTML=activityReportHtml+'<div class="crumbs"><a data-go="#/">Панель управления</a> › <span>'+L.crumb+'</span></div>'+
-   '<div class="page-h"><h1>'+L.title+' <span class="cnt">'+fmt(kind==='tasks'?taskCache.summary.total:rows.length)+'</span></h1><span class="badge b-gray">'+(L.noPeriod?'Текущее состояние на '+dRu(TODAY):P().label)+'</span><div class="spacer" style="flex:1"></div></div>'+historyNote+sum+
+   '<div class="page-h"><h1>'+L.title+' <span class="cnt">'+(kind==='service'?serviceLeadNumber():fmt(kind==='tasks'?taskCache.summary.total:rows.length))+'</span></h1><span class="badge b-gray">'+(L.noPeriod?'Текущее состояние на '+dRu(TODAY):P().label)+'</span><div class="spacer" style="flex:1"></div></div>'+historyNote+sum+
    '<div class="card"><div class="filters"><label class="inp search">'+ico('i-search')+'<input id="lsearch" placeholder="Поиск…" value="'+esc(q.q||'')+'"></label>'+fl+(Object.keys(q).length?'<button class="btn btn-o" data-go="#/'+kind+'">Сбросить</button>':'')+'</div>'+
    '<div class="tw"><table><thead><tr>'+L.head.map(function(h){return '<th>'+h+'</th>'}).join('')+'</tr></thead><tbody>'+(shown.length?shown.map(L.row).join(''):'<tr><td colspan="'+L.head.length+'" class="empty">Ничего не найдено</td></tr>')+'</tbody></table></div>'+
    (kind==='tasks'?(taskCache.hasMore?'<div class="more"><button class="btn btn-g" data-task-more>Показать ещё</button></div>':''):rows.length>shown.length?'<div class="more"><button class="btn btn-g" data-more>Показать ещё ('+(rows.length-shown.length)+')</button></div>':'')+'</div>';
@@ -720,10 +735,10 @@ document.addEventListener('click',function(e){
   if(t.hasAttribute('data-close')){closeModal();return}
   if(t.hasAttribute('data-go')){closeModal();listState.limit=50;go(t.getAttribute('data-go'))}
 });
-document.addEventListener('change',function(e){if(e.target.hasAttribute('data-activity-who')){activityWho=e.target.value;render();return}if(e.target.hasAttribute('data-lead-reason')){leadReason=e.target.value;render();return}if(e.target.hasAttribute('data-lead-outcome')){leadOutcome=e.target.value;render();return}if(e.target.hasAttribute('data-funnel-select')){funnelChoice=e.target.value;funnelExpanded=false;render();return}var f=e.target.getAttribute&&e.target.getAttribute('data-filter');if(f)setQ(f,e.target.value)});
+document.addEventListener('change',function(e){if(e.target.hasAttribute('data-activity-who')){activityWho=e.target.value;render();return}if(e.target.hasAttribute('data-lead-reason')){var key=e.target.value;if(e.target.checked){if(leadReasons.indexOf(key)<0)leadReasons.push(key)}else{leadReasons=leadReasons.filter(function(id){return id!==key})}var wasOpen=!!e.target.closest('details[open]');render();if(wasOpen){var picker=document.querySelector('.lead-picker');if(picker)picker.open=true}return}if(e.target.hasAttribute('data-lead-outcome')){leadOutcome=e.target.value;render();return}if(e.target.hasAttribute('data-funnel-select')){funnelChoice=e.target.value;funnelExpanded=false;render();return}var f=e.target.getAttribute&&e.target.getAttribute('data-filter');if(f)setQ(f,e.target.value)});
 
 
-function applyPipelines(ids){selectedPipelines=ids.slice();funnelChoice=ids.filter(function(id){return id!==7}).length===1?String(ids.filter(function(id){return id!==7})[0]):'selected';funnelExpanded=false;DB.leads=allDeals.filter(function(r){return ids.indexOf(r.category)>=0});DB.service=allService.filter(function(r){return ids.indexOf(r.category)>=0});rebuildStages();LISTS.leads.filters[1].opts=STAGES.map(function(s,i){return [String(i),s]});document.getElementById('pipelineLbl').textContent=ids.length===PIPELINES.length?'Все воронки':'Воронки: '+ids.length;listState.limit=50;var route=parseHash();delete route.q.stage;delete route.q.historyStage;delete route.q.transitionFrom;delete route.q.transitionTo;delete route.q.cumulativeStage;delete route.q.sideStage;var qs=Object.keys(route.q).map(function(k){return k+'='+encodeURIComponent(route.q[k])}).join('&');go('#/'+route.path.join('/')+(qs?'?'+qs:''));}
+function applyPipelines(ids){selectedPipelines=ids.slice();funnelChoice=ids.filter(function(id){return id!==7}).length===1?String(ids.filter(function(id){return id!==7})[0]):'selected';funnelExpanded=false;DB.leads=allDeals.filter(function(r){return ids.indexOf(r.category)>=0});DB.service=allService.filter(function(r){return ids.indexOf(r.category)>=0});rebuildStages();LISTS.leads.filters[1].opts=STAGES.map(function(s,i){return [String(i),s]});document.getElementById('pipelineLbl').textContent=ids.length===PIPELINES.length?'Все воронки':'Воронки: '+ids.length;listState.limit=50;var route=parseHash();delete route.q.stage;delete route.q.historyStage;delete route.q.transitionFrom;delete route.q.transitionTo;delete route.q.cumulativeStage;delete route.q.sideStage;delete route.q.deferred;var qs=Object.keys(route.q).map(function(k){return k+'='+encodeURIComponent(route.q[k])}).join('&');go('#/'+route.path.join('/')+(qs?'?'+qs:''));}
 function openPipelines(){closeMenus();openModal('Воронки','<p style="color:var(--muted)">Задачи показываются по вашим правам Bitrix и не зависят от воронок.</p>'+PIPELINES.map(function(p){return '<label style="display:flex;gap:10px;align-items:center;margin:12px 0"><input type="checkbox" name="live-pipeline" value="'+p.id+'" '+(selectedPipelines.indexOf(p.id)>=0?'checked':'')+'>'+esc(p.name)+'</label>'}).join(''),'<button class="btn btn-g" id="pipelineAll">Все</button><button class="btn btn-p" id="pipelineApply">Применить</button>',function(){document.getElementById('pipelineAll').onclick=function(){document.querySelectorAll('[name="live-pipeline"]').forEach(function(el){el.checked=true})};document.getElementById('pipelineApply').onclick=function(){var ids=Array.from(document.querySelectorAll('[name="live-pipeline"]:checked')).map(function(el){return Number(el.value)});applyPipelines(ids);closeModal();toast('Фильтр воронок применён')};})}
 document.getElementById('pipelineBtn').addEventListener('click',openPipelines);
 
