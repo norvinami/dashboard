@@ -1,5 +1,6 @@
 <?php
 if (!defined('BAVARIA_DASHBOARD_ALLOWED')) { http_response_code(403); exit; }
+require_once __DIR__.'/read-access.php';
 function dashboardDealActivityBucket(?int $timestamp, bool $hasActivity, DateTimeImmutable $today): string {
     if (!$hasActivity) { return 'without'; }
     if ($timestamp===null) { return 'unscheduled'; }
@@ -33,7 +34,7 @@ function dashboardDealActivities(array $deals, DateTimeImmutable $today): array 
     }
     $seen=[];
     foreach (array_chunk(array_keys($bindings),500) as $ids) {
-        $result=CCrmActivity::GetList(['ID'=>'ASC'],['ID'=>$ids,'COMPLETED'=>'N','CHECK_PERMISSIONS'=>'Y'],false,false,['ID','DEADLINE','COMPLETED']);
+        $result=CCrmActivity::GetList(['ID'=>'ASC'],['ID'=>$ids,'COMPLETED'=>'N','CHECK_PERMISSIONS'=>'Y'],false,false,['ID','DEADLINE','COMPLETED'],dashboardCrmReadOptions());
         if (!is_object($result)) { throw new RuntimeException('CRM activity read failed'); }
         while ($activity=$result->Fetch()) {
             $id=(int)$activity['ID'];

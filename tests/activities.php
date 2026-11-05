@@ -2,6 +2,7 @@
 namespace {
     if (PHP_SAPI !== 'cli') { http_response_code(403); exit; }
     define('BAVARIA_DASHBOARD_ALLOWED',true);
+    require __DIR__.'/crm-read-fixture.php';
     date_default_timezone_set('Asia/Qyzylorda');
     function MakeTimeStamp($value) { return strtotime($value); }
     function checkActivity($value,$message) { if (!$value) { throw new \RuntimeException($message); } }
@@ -12,7 +13,8 @@ namespace {
     }
     final class CCrmDeal {
         public static array $rows=[];
-        public static function GetListEx($order,$filter,$group,$nav,$select){
+        public static function GetListEx($order,$filter,$group,$nav,$select,$options=[]){
+            verifyDashboardReadOptions($options);
             checkActivity($filter['CHECK_PERMISSIONS']==='Y'&&$filter['STAGE_SEMANTIC_ID']==='P','Only permitted active deals');
             checkActivity(!isset($filter['>=DATE_CREATE']),'Snapshot includes old active deals');
             $rows=array_filter(self::$rows,static fn($r)=>$r['ID']>$filter['>ID']&&$r['STAGE_SEMANTIC_ID']==='P'&&(!isset($filter['CATEGORY_ID'])||in_array($r['CATEGORY_ID'],$filter['CATEGORY_ID'],true)));
@@ -21,7 +23,8 @@ namespace {
     }
     final class CCrmActivity {
         public static array $rows=[];
-        public static function GetList($order,$filter,$group,$nav,$select){
+        public static function GetList($order,$filter,$group,$nav,$select,$options=[]){
+            verifyDashboardReadOptions($options);
             checkActivity($filter['CHECK_PERMISSIONS']==='Y'&&$filter['COMPLETED']==='N','Only permitted incomplete activities');
             return new ActivityTestResult(array_values(array_filter(self::$rows,static fn($r)=>in_array($r['ID'],$filter['ID'],true)&&$r['COMPLETED']==='N'&&$r['ACCESS'])));
         }

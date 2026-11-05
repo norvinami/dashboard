@@ -1,6 +1,7 @@
 <?php
 if (PHP_SAPI !== 'cli') { http_response_code(403); exit; }
 define('BAVARIA_DASHBOARD_ALLOWED', true);
+    require __DIR__.'/crm-read-fixture.php';
 function checkLead($condition, $message) { if (!$condition) { throw new RuntimeException($message); } }
 require dirname(__DIR__).'/date-range.php';
 require dirname(__DIR__).'/lead-data.php';
@@ -36,7 +37,8 @@ final class CUserFieldEnum {
 final class CCrmLead {
     public static array $rows=[];
     public static int $queries=0;
-    public static function GetListEx($order, $filter, $group, $nav, $select) {
+    public static function GetListEx($order, $filter, $group, $nav, $select, $options=[]) {
+        verifyDashboardReadOptions($options);
         self::$queries++;
         checkLead($filter['CHECK_PERMISSIONS']==='Y', 'Lead permissions enforced');
         if (!isset($filter['>=DATE_CREATE'])) {
@@ -50,7 +52,8 @@ final class CCrmLead {
 }
 final class CCrmDeal {
     public static array $rows=[];
-    public static function GetListEx($order, $filter, $group, $nav, $select) {
+    public static function GetListEx($order, $filter, $group, $nav, $select, $options=[]) {
+        verifyDashboardReadOptions($options);
         checkLead($filter['CHECK_PERMISSIONS']==='Y', 'Linked deal permissions enforced');
         checkLead(!isset($filter['>=DATE_CREATE']) && !isset($filter['<=DATE_CREATE']), 'Conversions may happen outside lead cohort dates');
         $rows=array_filter(self::$rows, static fn($r)=>$r['ID']>$filter['>ID'] && in_array($r['LEAD_ID'],$filter['LEAD_ID'],true));

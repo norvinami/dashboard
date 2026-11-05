@@ -3,6 +3,7 @@ if (!defined('BAVARIA_DASHBOARD_ALLOWED')) {
     http_response_code(403);
     exit;
 }
+require_once __DIR__.'/read-access.php';
 /** Stream every permitted task without retaining the full list in PHP or the browser. */
 function dashboardTaskRows(): Generator {
     $after = 0;
@@ -10,7 +11,7 @@ function dashboardTaskRows(): Generator {
         $result = CTasks::GetList(
             ['ID' => 'ASC'], ['CHECK_PERMISSIONS' => 'Y', '>ID' => $after],
             ['ID', 'TITLE', 'RESPONSIBLE_ID', 'DEADLINE', 'STATUS'],
-            ['USER_ID' => 5, 'CHECK_PERMISSIONS' => 'Y', 'NAV_PARAMS' => ['nTopCount' => 500]]
+            ['USER_ID' => dashboardDataUserId(), 'CHECK_PERMISSIONS' => 'Y', 'NAV_PARAMS' => ['nTopCount' => 500]]
         );
         if (!is_object($result)) {
             throw new RuntimeException('Task query failed');

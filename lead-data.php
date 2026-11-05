@@ -1,5 +1,6 @@
 <?php
 if (!defined('BAVARIA_DASHBOARD_ALLOWED')) { http_response_code(403); exit; }
+require_once __DIR__.'/read-access.php';
 function dashboardNormalizeLabel(string $value): string {
     return mb_strtolower(trim(preg_replace('/\s+/u', ' ', $value)));
 }
@@ -36,7 +37,7 @@ function dashboardLeadReasonField(): array {
 function dashboardCrmRows(string $class, array $filter, array $select): Generator {
     $after = 0;
     while (true) {
-        $result = $class::GetListEx(['ID' => 'ASC'], array_merge($filter, ['>ID' => $after, 'CHECK_PERMISSIONS' => 'Y']), false, ['nTopCount' => 500], $select);
+        $result = $class::GetListEx(['ID' => 'ASC'], array_merge($filter, ['>ID' => $after, 'CHECK_PERMISSIONS' => 'Y']), false, ['nTopCount' => 500], $select, dashboardCrmReadOptions());
         if (!is_object($result)) { throw new RuntimeException('CRM read failed'); }
         $count = 0;
         while ($row = $result->Fetch()) {
@@ -111,7 +112,7 @@ function dashboardLeadDiagnostics(DateTimeImmutable $from, DateTimeImmutable $to
         $count=(int)$stats['directions'][$key]['total'];$total+=$count;
         $counts[]=['reason'=>$reason['label'],'total'=>$count];
     }
-    $result=CCrmLead::GetListEx(['DATE_CREATE'=>'DESC','ID'=>'DESC'],['CHECK_PERMISSIONS'=>'Y'],false,['nTopCount'=>1],['ID','DATE_CREATE']);
+    $result=CCrmLead::GetListEx(['DATE_CREATE'=>'DESC','ID'=>'DESC'],['CHECK_PERMISSIONS'=>'Y'],false,['nTopCount'=>1],['ID','DATE_CREATE'],dashboardCrmReadOptions());
     if (!is_object($result)) { throw new RuntimeException('CRM lead probe failed'); }
     $latest=$result->Fetch();
     return ['from'=>$from->format('Y-m-d'),'to'=>$to->format('Y-m-d'),'accessibleInPeriod'=>$total,

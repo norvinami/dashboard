@@ -2,6 +2,7 @@
 namespace {
     if (PHP_SAPI!=='cli') { http_response_code(403); exit; }
     define('BAVARIA_DASHBOARD_ALLOWED',true);
+    require __DIR__.'/crm-read-fixture.php';
     date_default_timezone_set('Asia/Qyzylorda');
     function MakeTimeStamp($value) { return strtotime($value); }
     function checkDealActivity($value,$message) { if (!$value) { throw new \RuntimeException($message); } }
@@ -11,7 +12,8 @@ namespace {
     }
     class CCrmActivity {
         public static array $rows=[];
-        public static function GetList($order,$filter,$group,$nav,$select) {
+        public static function GetList($order,$filter,$group,$nav,$select,$options=[]) {
+            verifyDashboardReadOptions($options);
             checkDealActivity($filter['CHECK_PERMISSIONS']==='Y'&&$filter['COMPLETED']==='N','Activity permissions enforced');
             return new DealActivityResult(array_values(array_filter(self::$rows,static fn($row)=>in_array($row['ID'],$filter['ID'],true)&&$row['COMPLETED']==='N'&&$row['ACCESS'])));
         }

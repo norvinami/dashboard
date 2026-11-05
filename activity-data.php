@@ -1,5 +1,6 @@
 <?php
 if (!defined('BAVARIA_DASHBOARD_ALLOWED')) { http_response_code(403); exit; }
+require_once __DIR__.'/read-access.php';
 function dashboardEmptyActivityCounts(): array {
     return ['overdue'=>0,'today'=>0,'tomorrow'=>0,'days3'=>0,'days7'=>0,'without'=>0,'active'=>0,'activities'=>0];
 }
@@ -48,7 +49,7 @@ function dashboardReadActivities(?array $categories, DateTimeImmutable $today): 
     foreach ($deals as $manager) { $ensure($manager);$byEmployee[$manager]['active']++; }
     $seen=[];
     foreach (array_chunk(array_keys($bindings),500) as $ids) {
-        $result=CCrmActivity::GetList(['ID'=>'ASC'], ['ID'=>$ids,'COMPLETED'=>'N','CHECK_PERMISSIONS'=>'Y'], false, false, ['ID','RESPONSIBLE_ID','DEADLINE','COMPLETED']);
+        $result=CCrmActivity::GetList(['ID'=>'ASC'], ['ID'=>$ids,'COMPLETED'=>'N','CHECK_PERMISSIONS'=>'Y'], false, false, ['ID','RESPONSIBLE_ID','DEADLINE','COMPLETED'],dashboardCrmReadOptions());
         if (!is_object($result)) { throw new RuntimeException('Activity read failed'); }
         while ($activity=$result->Fetch()) {
             $id=(int)$activity['ID'];

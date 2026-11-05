@@ -9,7 +9,9 @@ function dashboardFail(string $message, int $code = 500): void {
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     dashboardFail('Разрешено только чтение данных.', 405);
 }
+require_once __DIR__.'/read-access.php';
 try {
+    $identity=dashboardDataIdentity();
     if (isset($_GET['leadDiagnostics'])) {
         if (!\Bitrix\Main\Loader::includeModule('crm')) { dashboardFail('Модуль CRM недоступен.'); }
         require_once __DIR__.'/date-range.php';
@@ -19,7 +21,7 @@ try {
             $diagnostics=dashboardLeadDiagnostics($range['from'],$range['to']);
         } catch (InvalidArgumentException $error) { dashboardFail($error->getMessage(),400); }
         catch (DomainException $error) { dashboardFail($error->getMessage(),422); }
-        echo json_encode(['userId'=>(int)$USER->GetID()]+$diagnostics,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE|JSON_THROW_ON_ERROR);
+        echo json_encode($identity+['userId'=>$identity['currentUserId']]+$diagnostics,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE|JSON_THROW_ON_ERROR);
         exit;
     }
     if (isset($_GET['activities'])) {
@@ -31,7 +33,7 @@ try {
         }
         require_once __DIR__.'/lead-data.php';
         require_once __DIR__.'/activity-data.php';
-        echo json_encode(dashboardReadActivities($categories,new DateTimeImmutable('today')),JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE|JSON_THROW_ON_ERROR);
+        echo json_encode($identity+dashboardReadActivities($categories,new DateTimeImmutable('today')),JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE|JSON_THROW_ON_ERROR);
         exit;
     }
     if (isset($_GET['tasks'])) {
@@ -54,7 +56,7 @@ try {
         $filter['search'] = $search;
         $cursor = $_GET['cursor'] ?? '0';
         if (!is_string($cursor) || !ctype_digit($cursor) || strlen($cursor) > 15) { dashboardFail('Некорректная страница.', 400); }
-        echo json_encode(dashboardReadTasks($filter, (int)$cursor), JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR);
+        echo json_encode($identity+dashboardReadTasks($filter, (int)$cursor), JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR);
         exit;
     }
     if (!\Bitrix\Main\Loader::includeModule('crm')) {
@@ -94,20 +96,21 @@ try {
     $dealFields=dashboardDealFields();
     $customSelect=[];
     foreach ($dealFields as $field) { if (!isset($field['error'])) { $customSelect[]=$field['code']; } }
-    // CRM permissions are checked as the current logged-in user; no elevated service identity.
+    // Read using the fixed owner permission object. The viewer login/session never changes.
     $result = CCrmDeal::GetListEx(
         ['ID' => 'ASC'],
         ['>=DATE_CREATE' => $start->format('d.m.Y').' 00:00:00', '<=DATE_CREATE' => $end->format('d.m.Y').' 23:59:59', 'CHECK_PERMISSIONS' => 'Y'],
         false,
         ['nTopCount' => 5001],
         array_merge($customSelect, ['ID', 'TITLE', 'CATEGORY_ID', 'STAGE_ID', 'STAGE_SEMANTIC_ID', 'SOURCE_ID',
-         'ASSIGNED_BY_ID', 'DATE_CREATE', 'OPPORTUNITY', 'CURRENCY_ID'])
+         'ASSIGNED_BY_ID', 'DATE_CREATE', 'OPPORTUNITY', 'CURRENCY_ID']),
+        dashboardCrmReadOptions()
     );
     if (!is_object($result)) {
         dashboardFail('Не удалось прочитать сделки CRM.');
     }
     $deals = [];
-    $employeeIds = [(int)$USER->GetID() => true];
+    $employeeIds = [dashboardDataUserId() => true];
     while ($row = $result->Fetch()) {
         $category = (int)$row['CATEGORY_ID'];
         $stage = (string)$row['STAGE_ID'];
@@ -173,13 +176,15 @@ try {
         $employees[] = ['id' => $id, 'name' => $name ?: 'Сотрудник '.$id,
             'role' => $row ? (string)$row['WORK_POSITION'] : ''];
     }
-    echo json_encode(['today' => $today->format('Y-m-d'), 'from' => $start->format('Y-m-d'),
+    echo json_encode($identity+['today' => $today->format('Y-m-d'), 'from' => $start->format('Y-m-d'),
         'range' => array_map(static fn($date) => $date->format('Y-m-d'), $range), 'leadStats' => $leadStats,
         'dealFieldErrors' => array_map(static fn($field) => $field['error']??null,$dealFields),
-        'dealActivities' => $dealActivities, 'currentUserId' => (int)$USER->GetID(), 'categories' => $categories, 'stageOrder' => $stageOrder, 'stageNames' => $stages, 'stageSemantics' => $stageSemantics,
+        'dealActivities' => $dealActivities, 'categories' => $categories, 'stageOrder' => $stageOrder, 'stageNames' => $stages, 'stageSemantics' => $stageSemantics,
         'stageHistory' => $stageHistory, 'stageHistoryError' => $stageHistoryError, 'sources' => $sources, 'deals' => $deals,
         'tasks' => $taskPage['tasks'], 'taskSummary' => $taskPage['summary'], 'taskPage' => $taskPage, 'employees' => $employees],
         JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR);
+} catch (DomainException $error) {
+    dashboardFail($error->getMessage(),503);
 } catch (Throwable $error) {
     error_log('Bavaria dashboard: '.get_class($error).' at '.$error->getFile().':'.$error->getLine());
     dashboardFail('Ошибка чтения Bitrix. Подробности доступны администратору в журнале PHP.');
