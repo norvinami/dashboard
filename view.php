@@ -172,13 +172,14 @@ tbody tr.cl:hover td{background:#f8fafd}
 .done-t{color:var(--muted);text-decoration:line-through}
 
 /* modal */
-.ov{position:fixed;inset:0;background:rgba(15,23,42,.42);display:none;align-items:center;justify-content:center;z-index:90;padding:16px}
+.ov{position:fixed;inset:0;background:rgba(15,23,42,.42);display:none;align-items:flex-start;justify-content:center;z-index:90;padding:16px}
 .ov.open{display:flex}
-.modal{background:#fff;border-radius:16px;width:min(520px,100%);max-height:calc(100vh - 32px);overflow:auto;box-shadow:0 24px 60px rgba(0,0,0,.25)}
+.modal{background:#fff;border-radius:16px;width:min(520px,100%);max-height:min(520px,calc(100vh - 32px));display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.25)}
 .mh{display:flex;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line)}
 .mh h3{margin:0;font-size:17px;flex:1}
 .x{border:0;background:none;padding:4px;border-radius:6px;color:var(--muted)}.x:hover{background:var(--row)}
-.mb{padding:16px 18px;display:grid;gap:12px}
+.mh,.mf{flex-shrink:0}
+.mb{padding:16px 18px;display:grid;gap:12px;overflow-y:auto;min-height:0}
 .mb label{display:grid;gap:5px;font-size:12.5px;font-weight:600;color:var(--ink2)}
 .mb .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .mf{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px 16px;flex-wrap:wrap}
@@ -733,7 +734,22 @@ function renderStaff(){
 
 /* ================= MODALS ================= */
 var ov=document.getElementById('ov'),modal=document.getElementById('modal');
-function openModal(title,body,foot,onMount){modal.innerHTML='<div class="mh"><h3>'+title+'</h3><button class="x" data-close>'+ico('i-x')+'</button></div><div class="mb">'+body+'</div><div class="mf">'+foot+'</div>';ov.classList.add('open');if(onMount)onMount();var f=modal.querySelector('input,select');if(f&&window.innerWidth>640)f.focus()}
+// Bitrix can expand this iframe to full document height; clip to visible ancestor viewports.
+function visibleModalViewport(win){
+ var top=win.visualViewport?win.visualViewport.offsetTop:0,bottom=top+(win.visualViewport?win.visualViewport.height:win.innerHeight);
+ try{var frame=win.frameElement;if(frame){var parent=visibleModalViewport(win.parent),rect=frame.getBoundingClientRect(),scale=rect.height/(frame.offsetHeight||rect.height||1),origin=rect.top+frame.clientTop*scale;top=Math.max(top,(parent.top-origin)/scale);bottom=Math.min(bottom,(parent.bottom-origin)/scale)}}catch(error){/* Cross-origin parent: keep local viewport and the fixed height cap. */}
+ return {top:Math.max(0,top),bottom:Math.max(top,bottom)};
+}
+function positionModal(){
+ if(!ov.classList.contains('open'))return;
+ var viewport=visibleModalViewport(window),gap=12;
+ ov.style.paddingTop=(viewport.top+gap)+'px';
+ modal.style.maxHeight=Math.max(0,Math.min(520,viewport.bottom-viewport.top-gap*2))+'px';
+}
+var modalWindow=window;
+try{while(modalWindow){modalWindow.addEventListener('resize',positionModal);modalWindow.addEventListener('scroll',positionModal,{passive:true,capture:true});if(modalWindow===modalWindow.parent)break;modalWindow=modalWindow.parent;}}catch(error){/* Parent access is optional. */}
+if(window.visualViewport){window.visualViewport.addEventListener('resize',positionModal);window.visualViewport.addEventListener('scroll',positionModal)}
+function openModal(title,body,foot,onMount){modal.innerHTML='<div class="mh"><h3>'+title+'</h3><button class="x" data-close>'+ico('i-x')+'</button></div><div class="mb">'+body+'</div><div class="mf">'+foot+'</div>';ov.classList.add('open');positionModal();if(onMount)onMount();var f=modal.querySelector('input,select');if(f&&window.innerWidth>640)f.focus({preventScroll:true})}
 function closeModal(){ov.classList.remove('open')}
 ov.addEventListener('mousedown',function(e){if(e.target===ov)closeModal()});
 document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeModal();closeMenus()}});
