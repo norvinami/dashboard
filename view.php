@@ -297,7 +297,7 @@ tbody tr.cl:hover td{background:#f8fafd}
       <svg class="i ut" style="width:16px;color:var(--ink2)"><use href="#i-chev"/></svg>
     </div>
   </header>
-  <main id="app"></main><p style="color:var(--muted);font-size:12px;margin:16px 0">Период — дата создания лида для графика обращений и дата создания сделки для остальных показателей. Причина обращения берётся из текущего значения поля лида. Показаны только данные CRM и задач, доступные текущему пользователю. Суммы успешных сделок в ₸, не поступления оплаты. Воронка накопительная: предыдущие основные этапы засчитываются по максимальному достигнутому; отложенный этап учитывается отдельно. Данные 1С и поля автомобиля пока не подключены. Обновление — при перезагрузке страницы.</p>
+  <main id="app"></main><p style="color:var(--muted);font-size:12px;margin:16px 0">Период — дата создания лида для графика обращений и дата создания сделки для остальных показателей. Причина обращения берётся из текущего значения поля лида. Показаны только данные CRM и задач, доступные текущему пользователю. Суммы успешных сделок в ₸, не поступления оплаты. Воронка накопительная: предыдущие основные этапы засчитываются по максимальному достигнутому; отложенный этап учитывается отдельно. Данные 1С пока не подключены. Обновление — при перезагрузке страницы.</p>
 </div>
 
 <div class="ov" id="ov"><div class="modal" id="modal"></div></div>
@@ -372,7 +372,7 @@ async function requestTaskPage(q,more){
 function ensureTaskPage(q){if(taskCache.key!==taskKey(q)){requestTaskPage(q,false);app.textContent='Загрузка задач…';return false}if(taskCache.loading){app.textContent='Загрузка задач…';return false}if(taskCache.error){app.textContent='Задачи не загружены: '+taskCache.error;return false}return !!taskCache.summary}
 var stageKeys=[],STAGES=[],STAGE1=[];
 var allDeals=live.deals.filter(function(d){return d.category!==7}).map(function(d){return {id:'D'+d.id,deferred:d.deferred,name:d.title,phone:categoryNames[d.category]||'—',src:SRC[d.source]?d.source:'__unknown',date:d.date,stageKey:d.category+':'+d.stageId,stageName:d.stageName,mgr:'e'+d.manager,model:categoryNames[d.category]||'—',exp:d.amount,amount:d.semantic==='S'?d.amount:0,won:d.semantic==='S',open:d.semantic==='P',failed:d.semantic==='F',stageId:d.stageId,category:d.category}});
-var allService=live.deals.filter(function(d){return d.category===7}).map(function(d){return {id:'D'+d.id,client:d.title,car:d.model||'—',work:d.reason||'—',cancelReason:d.cancelReason||'—',status:d.semantic==='S'?'done':d.semantic==='F'?'cancel':d.stageId==='C7:NEW'?'new':'in_work',date:d.date,mgr:'e'+d.manager,wo:null,category:7}});
+var allService=live.deals.filter(function(d){return d.category===7}).map(function(d){return {id:'D'+d.id,client:d.title,car:d.model||'—',cancelReason:d.cancelReason||'—',cancelReasons:d.cancelReasons||[],status:d.semantic==='S'?'done':d.semantic==='F'?'cancel':d.stageId==='C7:NEW'?'new':'in_work',date:d.date,mgr:'e'+d.manager,wo:null,category:7}});
 function rebuildStages(){
  stageKeys=[];STAGES=[];
  DB.leads.forEach(function(d){if(stageKeys.indexOf(d.stageKey)<0){stageKeys.push(d.stageKey);STAGES.push((selectedPipelines.filter(function(id){return id!==7}).length>1?(categoryNames[d.category]+' · '):'')+d.stageName)}d.stage=stageKeys.indexOf(d.stageKey)});
@@ -396,21 +396,14 @@ function stageBadge(s){return '<span class="badge b-blue">'+esc(STAGE1[s]||'—'
 
 function inM(range){return function(r){return inRange(range,r.date)}}
 
-function serviceLeadSummary(){
- var stats=live.leadStats;
- if(!stats||stats.error)return {total:null,successful:null,error:stats&&stats.error||'Лиды недоступны'};
- var total=0,successful=0;
- Object.keys(stats.reasons||{}).forEach(function(id){if(stats.reasons[id].category===7){var d=stats.directions[id];total+=d.total;successful+=d.qualified+d.unconfirmed}});
- return {total:total,successful:successful,error:null};
-}
-function serviceLeadNumber(){var value=serviceLeadSummary().successful;return value===null?'—':fmt(value)}
 function metrics(range){
   if(!range)return null;
   var f=inM(range),leads=DB.leads.filter(f),svc=DB.service.filter(f);
   var st=STAGES.map(function(_,k){return leads.filter(function(l){return l.stage===k}).length});
   var sold=leads.filter(function(l){return l.won});
-  var src=SOURCES.map(function(s){var ls=leads.filter(function(l){return l.src===s.id});
-    return {s:s,leads:ls.length,deals:ls.filter(function(l){return l.open}).length,sales:ls.filter(function(l){return l.won}).length,rev:ls.reduce(function(a,l){return a+(l.amount||0)},0)}});
+  var sourceDeals=live.deals.filter(function(d){return selectedPipelines.indexOf(d.category)>=0&&inRange(range,d.date)});
+  var src=SOURCES.map(function(s){var ls=sourceDeals.filter(function(l){return (SRC[l.source]?l.source:'__unknown')===s.id});
+    return {s:s,leads:ls.length,deals:ls.filter(function(l){return l.semantic==='P'}).length,sales:ls.filter(function(l){return l.semantic==='S'}).length,rev:ls.reduce(function(a,l){return a+(l.semantic==='S'&&l.currency==='KZT'?l.amount:0)},0)}});
   return {leads:leads.length,stages:st,sales:sold.length,deals:leads.filter(function(l){return l.open}).length,rev:sold.reduce(function(a,l){return a+l.amount},0),src:src,
     svcReq:svc.length,svcDone:svc.filter(function(s){return s.status==='done'}).length,wo:svc.filter(function(s){return s.status==='done'}).length};
 }
@@ -560,24 +553,50 @@ function renderLeadChart(){
  return header+controls+'<div class="lead-chart">'+(chart||'<div class="empty">Выберите причины обращения</div>')+'</div><div class="lead-totals"><span>Всего обращений <b>'+fmt(total)+'</b></span></div><p class="lead-note">Все варианты списка, включая причины без обращений. Период — дата создания лида. Для новых авто и сервиса конверсия — доля целевых со сделкой нужной воронки; не подтверждено — успешный лид без доступной связи с ней. Для остальных причин — доля успешных лидов по статусу, без проверки воронки. Лиды в работе не считаются отказами.'+(stats.unassigned?' Без однозначной причины обращения: '+fmt(stats.unassigned)+'.':'')+'</p>';
 }
 
+var dealActivityType='all',dealActivityStatus='all',dealActivityLimit=50,serviceManagerOpen=false;
+var DEAL_ACTIVITY_LABELS={overdue:'Просрочено',without:'Нет дела',today:'Сегодня',week:'Неделя',month:'Месяц',unscheduled:'Без срока',later:'Позже месяца'};
+function renderDealActivities(){
+ var heading='<div class="ph">'+ico('i-clock')+'<div><h2>Дела по сделкам</h2><p>Сделки, созданные за выбранный период</p></div>'+chip()+'</div>';
+ var report=live.dealActivities;
+ if(!report||report.error)return '<section class="card panel deal-activities">'+heading+'<p>'+esc(report&&report.error||'Данные дел недоступны')+'</p></section>';
+ var error=live.dealFieldErrors&&live.dealFieldErrors.deferred;
+ var controls='<div class="filters"><label>Сделки<select class="inp" data-deal-activity-type>'+[['all','Все'],['deferred','Отложенные']].map(function(o){return '<option value="'+o[0]+'"'+(dealActivityType===o[0]?' selected':'')+'>'+o[1]+'</option>'}).join('')+'</select></label><label>Статус дела<select class="inp" data-deal-activity-status><option value="all">Все статусы</option>'+Object.keys(DEAL_ACTIVITY_LABELS).map(function(key){return '<option value="'+key+'"'+(dealActivityStatus===key?' selected':'')+'>'+DEAL_ACTIVITY_LABELS[key]+'</option>'}).join('')+'</select></label></div>';
+ if(dealActivityType==='deferred'&&error)return '<section class="card panel deal-activities">'+heading+controls+'<p>'+esc(error)+'</p></section>';
+ var rows=report.rows.filter(function(row){return selectedPipelines.indexOf(row.category)>=0&&(dealActivityType!=='deferred'||row.deferred===true)&&(dealActivityStatus==='all'||row.bucket===dealActivityStatus)});
+ var counts={overdue:0,without:0,today:0,week:0,month:0,unscheduled:0,later:0};rows.forEach(function(row){counts[row.bucket]++});
+ var summary='<div class="sum-row">'+Object.keys(counts).map(function(key){return '<div class="card sum"><small>'+DEAL_ACTIVITY_LABELS[key]+'</small><b>'+fmt(counts[key])+'</b></div>'}).join('')+'</div>';
+ var body=rows.slice(0,dealActivityLimit).map(function(row){return '<tr><td><a href="/crm/deal/details/'+Number(row.id)+'/" target="_blank" rel="noopener">'+esc(row.title)+'</a></td><td><span class="badge '+(row.bucket==='overdue'?'b-red':row.bucket==='without'?'b-amber':'b-blue')+'">'+esc(DEAL_ACTIVITY_LABELS[row.bucket])+'</span></td><td>'+ (row.deadline?dRu(row.deadline):'—')+'</td></tr>'}).join('')||'<tr><td colspan="3" class="empty">Нет сделок по выбранным фильтрам</td></tr>';
+ return '<section class="card panel deal-activities">'+heading+controls+summary+'<div class="tw"><table><thead><tr><th>Название сделки</th><th>Статус дела</th><th>Ближайший срок</th></tr></thead><tbody>'+body+'</tbody></table></div>'+(rows.length>dealActivityLimit?'<button class="btn btn-g" data-deal-activity-more>Показать ещё</button>':'')+'<p class="lead-note">Одна сделка — один раз по ближайшему доступному незавершённому делу. Просрочено — до сегодняшнего дня. Неделя — после сегодня до воскресенья; месяц — оставшиеся дни текущего месяца после недели. Без срока и позже месяца показаны отдельно. «Нет дела» означает отсутствие доступных незавершённых дел. Отложенные — значение «Отложил покупку» поля «СТАТУС СДЕЛКИ». Количества учитывают фильтры.</p></section>';
+}
+function serviceFailureGroups(rows){
+ var failed=rows.filter(function(row){return row.status==='cancel'}),groups=new Map();
+ failed.forEach(function(row){var reasons=Array.from(new Set(row.cancelReasons&&row.cancelReasons.length?row.cancelReasons:['Не указана']));reasons.forEach(function(reason){groups.set(reason,(groups.get(reason)||0)+1)})});
+ return {total:failed.length,groups:Array.from(groups.entries()).sort(function(a,b){return b[1]-a[1]||a[0].localeCompare(b[0],'ru')})};
+}
+function renderServiceFailures(rows){
+ var data=serviceFailureGroups(rows),error=live.dealFieldErrors&&live.dealFieldErrors.cancelReason;
+ var header='<div class="ph"><h2>Причины проваленных обращений</h2></div>';
+ if(error)return '<section class="card panel service-failures">'+header+'<p>'+esc(error)+'</p></section>';
+ var body=data.groups.map(function(group){var rate=data.total?group[1]/data.total*100:0;return '<div class="lead-chart-row"><div class="lead-chart-title"><b>'+esc(group[0])+'</b><span>'+fmt(group[1])+' · '+pct(rate)+'</span></div><div class="lead-stacked"><div class="lead-segment failed" style="width:'+rate+'%"></div></div></div>'}).join('')||'<p class="empty">Проваленных обращений нет</p>';
+ return '<section class="card panel service-failures">'+header+body+'<p class="lead-note">Всего проваленных: '+fmt(data.total)+'. Процент — от всех проваленных сделок после фильтров периода, ответственных, статуса и поиска. Если у сделки несколько причин, она учитывается один раз в каждой; сумма процентов может превышать 100%.</p></section>';
+}
+
 function renderDash(){
   var per=P(),m=metrics(per.range),pv=metrics(per.prev);
   var overdue=taskSummary.overdue;
   var K=[
     {ic:'i-coins',lb:'Сумма успешных сделок',v:mln(m.rev),u:'млн ₸',d:delta(m.rev,pv&&pv.rev),go:'#/sales'},
     {ic:'i-car',lb:'Успешные сделки',v:fmt(m.sales),d:delta(m.sales,pv&&pv.sales),go:'#/sales'},
-    {ic:'i-wrench',lb:'Сервис<br>(успешные лиды)',v:serviceLeadNumber(),d:'',go:'#/service'},
+    {ic:'i-wrench',lb:'Сервис<br>(успешные сделки)',v:fmt(m.svcDone),d:delta(m.svcDone,pv&&pv.svcDone),go:'#/service'},
     {ic:'i-users',lb:'Новые сделки',v:fmt(m.leads),d:delta(m.leads,pv&&pv.leads),go:'#/leads'},
     {ic:'i-hand',lb:'Активные сделки',v:fmt(m.deals),d:delta(m.deals,pv&&pv.deals),go:'#/deals'},
     {ic:'i-bell',lb:'Просроченные<br>задачи',v:fmt(overdue),d:'<span class="delta na">Текущее состояние</span>',go:'#/tasks?st=overdue',warn:1}];
   var kh=K.map(function(k){return '<button class="card kpi'+(k.warn?' warn':'')+'" data-go="'+k.go+'"><div class="ic">'+ico(k.ic)+'</div><div style="min-width:0"><div class="lb">'+k.lb+'</div><div class="val">'+k.v+(k.u?'<small>'+k.u+'</small>':'')+'</div>'+k.d+'<div class="cmp">к предыдущему периоду</div></div></button>'}).join('');
 
-  var serviceLeads=serviceLeadSummary(),sconv=serviceLeads.total?serviceLeads.successful/serviceLeads.total*100:0;
+  var sconv=m.svcReq?m.svcDone/m.svcReq*100:0;
 
-  var sh=m.src.filter(function(r){return r.leads!==0||r.deals!==0||r.sales!==0||r.rev!==0}).map(function(r){return '<tr class="cl" data-go="#/leads?source='+r.s.id+'"><td>'+srcCell(r.s.id)+'</td><td class="num">'+r.leads+'</td><td class="num">'+r.deals+'</td><td class="num">'+r.sales+'</td><td class="r" style="white-space:nowrap">'+mln(r.rev)+' млн ₸</td></tr>'}).join('')||'<tr><td colspan="5" class="empty">Нет данных за выбранный период</td></tr>';
+  var sh=m.src.filter(function(r){return r.leads!==0||r.deals!==0||r.sales!==0||r.rev!==0}).map(function(r){return '<tr class="cl" data-go="#/sources?source='+encodeURIComponent(r.s.id)+'"><td>'+srcCell(r.s.id)+'</td><td class="num">'+r.leads+'</td><td class="num">'+r.deals+'</td><td class="num">'+r.sales+'</td><td class="r" style="white-space:nowrap">'+mln(r.rev)+' млн ₸</td></tr>'}).join('')||'<tr><td colspan="5" class="empty">Нет данных за выбранный период</td></tr>';
 
-  var od=EMP.map(function(e){var t=taskStats(e.id);return {e:e,total:t.total,od:t.overdue}}).filter(function(x){return x.od>0}).sort(function(a,b){return b.od-a.od||b.total-a.total});
-  var oh=od.length?od.map(function(x){return '<tr class="cl" data-go="#/employee/'+x.e.id+'"><td>'+personCell(x.e.id)+'</td><td>'+esc(x.e.role)+'</td><td class="num">'+x.total+'</td><td class="num red">'+x.od+'</td></tr>'}).join(''):'<tr><td colspan="4" class="empty">Просроченных задач нет 🎉</td></tr>';
 
   app.innerHTML=
   '<section class="hero"><div class="hero-img">'+heroSvg()+'</div><div class="hero-txt"><h1>Панель управления</h1><nav><a data-go="#/sales">Продажи</a><span>·</span><a data-go="#/service">Сервис</a><span>·</span><a data-go="#/leads">Клиенты</a><span>·</span><a data-go="#/tasks">Задачи</a><span>·</span><a data-go="#/staff">Эффективность</a></nav></div></section>'+
@@ -585,15 +604,19 @@ function renderDash(){
   '<section class="card panel lead-panel">'+renderLeadChart()+'</section>'+
   '<section class="mid">'+
    '<div class="card panel p-fun">'+renderFunnel(per.range)+'</div>'+
-   '<div class="card panel"><div class="ph">'+ico('i-car')+'<div><h2>Сервис</h2><p>Успешные лиды с причиной «Сервис»</p></div>'+chip()+'</div><div class="svc">'+donut(serviceLeads.successful||0,serviceLeads.total||0,170,20,'Успешные<br>лиды',serviceLeadNumber())+
-     '<div class="svc-stats"><div class="stat" data-go="#/service"><span>Успешные лиды в сервис</span><b>'+serviceLeadNumber()+'</b></div><div class="stat" data-go="#/service?st=done"><span>Записи на сервис</span><b>'+fmt(m.svcDone)+'</b></div><div class="lead-note">'+(serviceLeads.error?esc(serviceLeads.error):'Доля успешных среди лидов с причиной «Сервис»: '+pct(sconv))+'.</div><div class="svc-bar"><i style="width:'+sconv+'%"></i></div><div class="stat" data-go="#/service?st=in_work"><span>В работе сейчас</span><b>'+fmt(DB.service.filter(function(s){return s.status==='in_work'&&inRange(per.range,s.date)}).length)+'</b></div></div></div></div>'+
+   '<div class="card panel"><div class="ph">'+ico('i-car')+'<div><h2>Сервис</h2><p>Сделки воронки «Сервис» за период</p></div>'+chip()+'</div><div class="svc">'+donut(m.svcDone,m.svcReq,170,20,'Доля<br>успешных',m.svcReq?pct(sconv):'—')+
+     '<div class="svc-stats"><div class="stat" data-go="#/service"><span>Всего обращений</span><b>'+fmt(m.svcReq)+'</b></div><div class="stat" data-go="#/service?st=done"><span>Успешные обращения</span><b>'+fmt(m.svcDone)+'</b></div><div class="stat"><span>Проваленные обращения</span><b>'+fmt(DB.service.filter(function(s){return s.status==='cancel'&&inRange(per.range,s.date)}).length)+'</b></div><div class="svc-bar"><i style="width:'+sconv+'%"></i></div><div class="stat" data-go="#/service?st=in_work"><span>В работе сейчас</span><b>'+fmt(DB.service.filter(function(s){return s.status==='in_work'&&inRange(per.range,s.date)}).length)+'</b></div></div></div></div>'+
    '<div class="card panel"><div class="ph">'+ico('i-bars')+'<h2>Источники клиентов</h2>'+chip()+'</div><div class="tw"><table><thead><tr><th>Источник</th><th class="num">Сделки</th><th class="num">В работе</th><th class="num">Успешные</th><th class="r">Сумма успешных сделок</th></tr></thead><tbody>'+sh+'</tbody></table></div></div>'+
   '</section>'+
-  '<section class="card tasks-card"><div class="ph">'+ico('i-clock')+'<h2>Просроченные задачи</h2></div><div class="tw"><table><thead><tr><th>Сотрудник</th><th>Должность</th><th class="num">Всего задач</th><th class="num">Просрочено</th></tr></thead><tbody>'+oh+'</tbody></table></div></section>';
+  renderDealActivities();
 }
 
 /* ================= LIST PAGES ================= */
 var LISTS={
+ sources:{title:'Сделки по источнику',crumb:'Источники клиентов',
+   rows:function(q){return live.deals.filter(function(d){return selectedPipelines.indexOf(d.category)>=0&&inRange(P().range,d.date)&&(!q.source||(SRC[d.source]?d.source:'__unknown')===q.source)})},
+   filters:[],head:['Сделка','Воронка','Стадия','Источник','Ответственный','Дата'],
+   row:function(d){return '<tr><td><a href="/crm/deal/details/'+Number(d.id)+'/" target="_blank" rel="noopener">'+esc(d.title)+'</a></td><td>'+esc(categoryNames[d.category]||'—')+'</td><td>'+esc(d.stageName)+'</td><td>'+srcCell(SRC[d.source]?d.source:'__unknown')+'</td><td>'+personCell('e'+d.manager)+'</td><td>'+dRu(d.date)+'</td></tr>'},text:function(d){return d.title}},
  leads:{title:'Обращения и сделки',crumb:'Клиенты',create:'lead',
    rows:function(q){var ms=P().range;return DB.leads.filter(function(l){return inRange(ms,l.date)&&(q.category!==undefined?l.category===Number(q.category):true)&&(q.outcome==='won'?l.won:q.outcome==='failed'?l.failed:true)&&(q.transitionFrom&&q.transitionTo?dealPassedCumulativeTransition(l,l.category,q.transitionFrom,q.transitionTo):true)&&(q.cumulativeStage?dealReachedCumulativeStage(l,l.category,q.cumulativeStage):true)&&(q.sideStage?l.stageId===q.sideStage:true)&&(q.deferred?l.deferred===true:true)&&(q.historyStage?!!dealStageVisits(l)[q.historyStage]:true)&&(q.source?l.src===q.source:true)&&(q.stage!==undefined&&q.stage!==''?l.stage===+q.stage:true)})},
    filters:[{k:'source',lb:'Все источники',opts:SOURCES.map(function(s){return [s.id,s.name]})},{k:'stage',lb:'Все этапы',opts:STAGES.map(function(s,i){return [String(i),'Стадия: '+s]})}],
@@ -615,12 +638,12 @@ var LISTS={
    text:function(l){return l.name+' '+l.model},
    sum:function(r){var s=r.reduce(function(a,l){return a+l.amount},0);return [['Успешных сделок',fmt(r.length)],['Сумма успешных сделок',mln(s)+' млн ₸'],['Средний чек',r.length?mln1(s/r.length):'—']]}},
  service:{title:'Сервис',crumb:'Сервис',create:'service',
-   rows:function(q){var ms=P().range;return DB.service.filter(function(s){return inRange(ms,s.date)&&(q.st?s.status===q.st:true)&&(q.wo?s.status==='done':true)&&(q.mgr?s.mgr===q.mgr:true)})},
-   filters:[{k:'st',lb:'Все статусы',opts:Object.keys(SVC_ST).map(function(k){return [k,SVC_ST[k][0]]})},{k:'mgr',lb:'Все ответственные',opts:SVC_EMP.map(function(id){return [id,EM[id].name]})}],
-   head:['Заявка','Модель','Причина обращения','Запись не состоялась по причине','Статус','Ответственный','Дата'],
-   row:function(s){return '<tr class="cl" data-svc="'+s.id+'"><td><b>'+esc(s.client)+'</b></td><td style="white-space:nowrap">'+esc(s.car)+'</td><td>'+esc(s.work)+'</td><td>'+esc(s.cancelReason)+'</td><td><span class="badge '+SVC_ST[s.status][1]+'">'+SVC_ST[s.status][0]+'</span></td><td>'+personCell(s.mgr)+'</td><td>'+dRu(s.date)+'</td></tr>'},
-   text:function(s){return s.client+' '+s.car+' '+s.work+' '+s.cancelReason},
-   sum:function(r){var d=r.filter(function(s){return s.status==='done'}).length;return [['Успешные лиды в сервис',serviceLeadNumber()],['Сделок в таблице',fmt(r.length)],['Записей',fmt(d)]]}},
+   rows:function(q){var ms=P().range;return DB.service.filter(function(s){return inRange(ms,s.date)&&(q.st?s.status===q.st:true)&&(q.wo?s.status==='done':true)&&(q.mgr?q.mgr.split(',').indexOf(s.mgr)>=0:true)})},
+   filters:[{k:'st',lb:'Все статусы',opts:Object.keys(SVC_ST).map(function(k){return [k,SVC_ST[k][0]]})},{k:'mgr',lb:'Ответственные',multiple:true,opts:SVC_EMP.map(function(id){return [id,EM[id].name]})}],
+   head:['Заявка','Марка авто сервис','Запись на сервис не состоялась по причине','Статус','Ответственный','Дата'],
+   row:function(s){return '<tr class="cl" data-svc="'+s.id+'"><td><b>'+esc(s.client)+'</b></td><td style="white-space:nowrap">'+esc(s.car)+'</td><td>'+esc(s.cancelReason)+'</td><td><span class="badge '+SVC_ST[s.status][1]+'">'+SVC_ST[s.status][0]+'</span></td><td>'+personCell(s.mgr)+'</td><td>'+dRu(s.date)+'</td></tr>'},
+   text:function(s){return s.client+' '+s.car+' '+s.cancelReason},
+   sum:function(r){var d=r.filter(function(s){return s.status==='done'}).length,f=r.filter(function(s){return s.status==='cancel'}).length;return [['Всего обращений',fmt(r.length)],['Успешных обращений',fmt(d)],['Проваленных обращений',fmt(f)],['Доля успешных',r.length?pct(d/r.length*100):'—'],['Доля проваленных',r.length?pct(f/r.length*100):'—']] }},
  tasks:{title:'Задачи',crumb:'Задачи',create:'task',noPeriod:1,
    rows:function(q){return taskCache.rows},
    filters:[{k:'st',lb:'Все задачи',opts:[['overdue','Просроченные'],['open','В срок'],['done','Выполненные']]},{k:'who',lb:'Все сотрудники',opts:EMP.map(function(e){return [e.id,e.name]})}],
@@ -663,18 +686,19 @@ function renderList(kind,q){
   var historyNote=kind==='leads'&&q.historyStage?'<p class="funnel-history-note">Сделки, побывавшие на этапе «'+esc(((live.stageNames||{})[q.category]||{})[q.historyStage]||q.historyStage)+'». В таблице показана их текущая стадия.</p>':'';
   if(kind==='leads'&&q.transitionFrom&&q.transitionTo){var stageNames=(live.stageNames||{})[q.category]||{};historyNote='<p class="funnel-history-note">Сделки, достигшие этапа «'+esc(stageNames[q.transitionTo]||q.transitionTo)+'» с учётом пропущенных основных этапов. В таблице показана текущая стадия.</p>'}
   if(kind==='leads'&&q.cumulativeStage)historyNote='<p class="funnel-history-note">Сделки, достигшие выбранного основного этапа с учётом пропущенных этапов. В таблице показана текущая стадия.</p>';
-  if(kind==='leads'&&q.deferred)historyNote='<p class="funnel-history-note">Сделки со значением «Отложенные» в поле «Статус сделки».</p>';
+  if(kind==='leads'&&q.deferred)historyNote='<p class="funnel-history-note">Сделки со значением «Отложил покупку» в поле «Статус сделки».</p>';
   if(kind==='leads'&&q.sideStage)historyNote='<p class="funnel-history-note">Сделки, сейчас находящиеся на отложенном этапе.</p>';
-  var fl=L.filters.map(function(f){return '<select class="inp" data-filter="'+f.k+'"><option value="">'+f.lb+'</option>'+f.opts.map(function(o){return '<option value="'+esc(o[0])+'"'+(q[f.k]===o[0]?' selected':'')+'>'+esc(o[1])+'</option>'}).join('')+'</select>'}).join('');
-  if(kind==='service'){var warnings=['model','reason','cancelReason'].map(function(key){return live.dealFieldErrors&&live.dealFieldErrors[key]}).filter(Boolean);if(warnings.length)historyNote+='<p class="lead-note">'+esc(warnings.join(' '))+'</p>';if(serviceLeadSummary().error)historyNote+='<p class="lead-note">'+esc(serviceLeadSummary().error)+'</p>';}
+  var fl=L.filters.map(function(f){if(f.multiple){var selected=(q[f.k]||'').split(',').filter(Boolean);return '<details class="lead-picker service-managers"><summary>'+f.lb+': '+(selected.length||'все')+'</summary><div class="lead-options">'+f.opts.map(function(o){return '<label><input type="checkbox" data-service-manager value="'+esc(o[0])+'"'+(selected.indexOf(o[0])>=0?' checked':'')+'> '+esc(o[1])+'</label>'}).join('')+'</div></details>'}return '<select class="inp" data-filter="'+f.k+'"><option value="">'+f.lb+'</option>'+f.opts.map(function(o){return '<option value="'+esc(o[0])+'"'+(q[f.k]===o[0]?' selected':'')+'>'+esc(o[1])+'</option>'}).join('')+'</select>'}).join('');
+  if(kind==='service'){var warnings=['model','cancelReason'].map(function(key){return live.dealFieldErrors&&live.dealFieldErrors[key]}).filter(Boolean);if(warnings.length)historyNote+='<p class="lead-note">'+esc(warnings.join(' '))+'</p>';}
   var values=kind==='tasks'?[['Всего',fmt(taskCache.summary.total)],['Просрочено',fmt(taskCache.summary.overdue)],['Выполнено',fmt(taskCache.summary.done)]]:(L.sum?L.sum(rows):[]);
   var sum=values.length?'<div class="sum-row">'+values.map(function(s){return '<div class="card sum"><small>'+s[0]+'</small><b>'+s[1]+'</b></div>'}).join('')+'</div>':'';
   var shown=kind==='tasks'?rows:rows.slice(0,listState.limit);
   app.innerHTML=activityReportHtml+'<div class="crumbs"><a data-go="#/">Панель управления</a> › <span>'+L.crumb+'</span></div>'+
-   '<div class="page-h"><h1>'+L.title+' <span class="cnt">'+(kind==='service'?serviceLeadNumber():fmt(kind==='tasks'?taskCache.summary.total:rows.length))+'</span></h1><span class="badge b-gray">'+(L.noPeriod?'Текущее состояние на '+dRu(TODAY):P().label)+'</span><div class="spacer" style="flex:1"></div></div>'+historyNote+sum+
+   '<div class="page-h"><h1>'+L.title+' <span class="cnt">'+fmt(kind==='tasks'?taskCache.summary.total:rows.length)+'</span></h1><span class="badge b-gray">'+(L.noPeriod?'Текущее состояние на '+dRu(TODAY):P().label)+'</span><div class="spacer" style="flex:1"></div></div>'+historyNote+sum+
    '<div class="card"><div class="filters"><label class="inp search">'+ico('i-search')+'<input id="lsearch" placeholder="Поиск…" value="'+esc(q.q||'')+'"></label>'+fl+(Object.keys(q).length?'<button class="btn btn-o" data-go="#/'+kind+'">Сбросить</button>':'')+'</div>'+
    '<div class="tw"><table><thead><tr>'+L.head.map(function(h){return '<th>'+h+'</th>'}).join('')+'</tr></thead><tbody>'+(shown.length?shown.map(L.row).join(''):'<tr><td colspan="'+L.head.length+'" class="empty">Ничего не найдено</td></tr>')+'</tbody></table></div>'+
-   (kind==='tasks'?(taskCache.hasMore?'<div class="more"><button class="btn btn-g" data-task-more>Показать ещё</button></div>':''):rows.length>shown.length?'<div class="more"><button class="btn btn-g" data-more>Показать ещё ('+(rows.length-shown.length)+')</button></div>':'')+'</div>';
+   (kind==='tasks'?(taskCache.hasMore?'<div class="more"><button class="btn btn-g" data-task-more>Показать ещё</button></div>':''):rows.length>shown.length?'<div class="more"><button class="btn btn-g" data-more>Показать ещё ('+(rows.length-shown.length)+')</button></div>':'')+'</div>'+(kind==='service'?renderServiceFailures(rows):'');
+  if(kind==='service'&&serviceManagerOpen){var managerPicker=document.querySelector('.service-managers');if(managerPicker)managerPicker.open=true;serviceManagerOpen=false;}
   var inp=document.getElementById('lsearch'),tm;
   inp.addEventListener('input',function(){clearTimeout(tm);tm=setTimeout(function(){setQ('q',inp.value)},300)});
   if(q.q){inp.focus();inp.setSelectionRange(inp.value.length,inp.value.length)}
@@ -723,9 +747,10 @@ function svcCard(id){var d=DB.service.find(function(r){return r.id===id});if(!d)
 function closeMenus(){}
 
 document.addEventListener('click',function(e){
-  var t=e.target.closest('[data-lead],[data-svc],[data-more],[data-task-more],[data-funnel-expand],[data-funnel-pick],[data-activity-refresh],[data-close],[data-go]');
+  var t=e.target.closest('[data-deal-activity-more],[data-lead],[data-svc],[data-more],[data-task-more],[data-funnel-expand],[data-funnel-pick],[data-activity-refresh],[data-close],[data-go]');
   if(!t){closeMenus();return}
   closeMenus();
+  if(t.hasAttribute('data-deal-activity-more')){dealActivityLimit+=50;render();return}
   if(t.hasAttribute('data-lead')){leadCard(t.getAttribute('data-lead'));return}
   if(t.hasAttribute('data-svc')){svcCard(t.getAttribute('data-svc'));return}
   if(t.hasAttribute('data-task-more')){var route=parseHash();requestTaskPage(route.path[0]==='employee'?{who:route.path[1]}:route.q,true);return}
@@ -736,11 +761,11 @@ document.addEventListener('click',function(e){
   if(t.hasAttribute('data-close')){closeModal();return}
   if(t.hasAttribute('data-go')){closeModal();listState.limit=50;go(t.getAttribute('data-go'))}
 });
-document.addEventListener('change',function(e){if(e.target.hasAttribute('data-activity-who')){activityWho=e.target.value;render();return}if(e.target.hasAttribute('data-lead-reason')){var key=e.target.value;if(e.target.checked){if(leadReasons.indexOf(key)<0)leadReasons.push(key)}else{leadReasons=leadReasons.filter(function(id){return id!==key})}var wasOpen=!!e.target.closest('details[open]');render();if(wasOpen){var picker=document.querySelector('.lead-picker');if(picker)picker.open=true}return}if(e.target.hasAttribute('data-lead-outcome')){leadOutcome=e.target.value;render();return}if(e.target.hasAttribute('data-funnel-select')){funnelChoice=e.target.value;funnelExpanded=false;render();return}var f=e.target.getAttribute&&e.target.getAttribute('data-filter');if(f)setQ(f,e.target.value)});
+document.addEventListener('change',function(e){if(e.target.hasAttribute('data-deal-activity-type')){dealActivityType=e.target.value;dealActivityLimit=50;render();return}if(e.target.hasAttribute('data-deal-activity-status')){dealActivityStatus=e.target.value;dealActivityLimit=50;render();return}if(e.target.hasAttribute('data-service-manager')){var selected=(parseHash().q.mgr||'').split(',').filter(Boolean),key=e.target.value;if(e.target.checked){if(selected.indexOf(key)<0)selected.push(key)}else{selected=selected.filter(function(id){return id!==key})}serviceManagerOpen=true;setQ('mgr',selected.join(','));return}if(e.target.hasAttribute('data-activity-who')){activityWho=e.target.value;render();return}if(e.target.hasAttribute('data-lead-reason')){var key=e.target.value;if(e.target.checked){if(leadReasons.indexOf(key)<0)leadReasons.push(key)}else{leadReasons=leadReasons.filter(function(id){return id!==key})}var wasOpen=!!e.target.closest('details[open]');render();if(wasOpen){var picker=document.querySelector('.lead-picker');if(picker)picker.open=true}return}if(e.target.hasAttribute('data-lead-outcome')){leadOutcome=e.target.value;render();return}if(e.target.hasAttribute('data-funnel-select')){funnelChoice=e.target.value;funnelExpanded=false;render();return}var f=e.target.getAttribute&&e.target.getAttribute('data-filter');if(f)setQ(f,e.target.value)});
 
 
 function applyPipelines(ids){selectedPipelines=ids.slice();funnelChoice=ids.filter(function(id){return id!==7}).length===1?String(ids.filter(function(id){return id!==7})[0]):'selected';funnelExpanded=false;DB.leads=allDeals.filter(function(r){return ids.indexOf(r.category)>=0});DB.service=allService.filter(function(r){return ids.indexOf(r.category)>=0});rebuildStages();LISTS.leads.filters[1].opts=STAGES.map(function(s,i){return [String(i),s]});document.getElementById('pipelineLbl').textContent=ids.length===PIPELINES.length?'Все воронки':'Воронки: '+ids.length;listState.limit=50;var route=parseHash();delete route.q.stage;delete route.q.historyStage;delete route.q.transitionFrom;delete route.q.transitionTo;delete route.q.cumulativeStage;delete route.q.sideStage;delete route.q.deferred;var qs=Object.keys(route.q).map(function(k){return k+'='+encodeURIComponent(route.q[k])}).join('&');go('#/'+route.path.join('/')+(qs?'?'+qs:''));}
-function openPipelines(){closeMenus();openModal('Воронки','<p style="color:var(--muted)">Задачи показываются по вашим правам Bitrix и не зависят от воронок.</p>'+PIPELINES.map(function(p){return '<label style="display:flex;gap:10px;align-items:center;margin:12px 0"><input type="checkbox" name="live-pipeline" value="'+p.id+'" '+(selectedPipelines.indexOf(p.id)>=0?'checked':'')+'>'+esc(p.name)+'</label>'}).join(''),'<button class="btn btn-g" id="pipelineAll">Все</button><button class="btn btn-p" id="pipelineApply">Применить</button>',function(){document.getElementById('pipelineAll').onclick=function(){document.querySelectorAll('[name="live-pipeline"]').forEach(function(el){el.checked=true})};document.getElementById('pipelineApply').onclick=function(){var ids=Array.from(document.querySelectorAll('[name="live-pipeline"]:checked')).map(function(el){return Number(el.value)});applyPipelines(ids);closeModal();toast('Фильтр воронок применён')};})}
+function openPipelines(){closeMenus();openModal('Воронки','<p style="color:var(--muted)">Задачи показываются по вашим правам Bitrix и не зависят от воронок.</p>'+PIPELINES.map(function(p){return '<label style="display:flex;gap:10px;align-items:center;margin:12px 0"><input type="checkbox" name="live-pipeline" value="'+p.id+'" '+(selectedPipelines.indexOf(p.id)>=0?'checked':'')+'>'+esc(p.name)+'</label>'}).join(''),'<button class="btn btn-g" id="pipelineAll">Все</button><button class="btn btn-p" id="pipelineApply">Применить</button>',function(){document.getElementById('pipelineAll').onclick=function(){var allChecked=Array.from(document.querySelectorAll('[name="live-pipeline"]')).every(function(el){return el.checked});document.querySelectorAll('[name="live-pipeline"]').forEach(function(el){el.checked=!allChecked})};document.getElementById('pipelineApply').onclick=function(){var ids=Array.from(document.querySelectorAll('[name="live-pipeline"]:checked')).map(function(el){return Number(el.value)});applyPipelines(ids);closeModal();toast('Фильтр воронок применён')};})}
 document.getElementById('pipelineBtn').addEventListener('click',openPipelines);
 
 render();

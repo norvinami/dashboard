@@ -3,7 +3,7 @@ if (!defined('BAVARIA_DASHBOARD_ALLOWED')) { http_response_code(403); exit; }
 /** Read field metadata only; CRM values still come from permission-checked deal queries. */
 function dashboardDealFields(): array {
     global $USER_FIELD_MANAGER;
-    $labels = ['model'=>'модель', 'reason'=>'причина обращения', 'cancelReason'=>'запись не состоялась по причине', 'deferred'=>'статус сделки'];
+    $labels = ['model'=>'марка авто сервис', 'cancelReason'=>'запись на сервис не состоялась по причине', 'deferred'=>'статус сделки'];
     $fields = is_object($USER_FIELD_MANAGER) ? $USER_FIELD_MANAGER->GetUserFields('CRM_DEAL', 0, 'ru') : [];
     $resolved = [];
     foreach ($labels as $key=>$label) {
@@ -22,8 +22,8 @@ function dashboardDealFields(): array {
         }
         if ($key==='deferred') {
             $item['deferredIds']=[];
-            foreach ($item['enum'] as $id=>$name) { if (dashboardNormalizeLabel($name)==='отложенные') { $item['deferredIds'][]=(string)$id; } }
-            if (!$item['deferredIds']) { $item['error']='В поле «Статус сделки» не найден вариант «Отложенные».'; }
+            foreach ($item['enum'] as $id=>$name) { if (dashboardNormalizeLabel($name)==='отложил покупку') { $item['deferredIds'][]=(string)$id; } }
+            if (!$item['deferredIds']) { $item['error']='В поле «Статус сделки» не найден вариант «Отложил покупку».'; }
         } elseif (!in_array($item['type'],['enumeration','string','integer','double','boolean','date','datetime'],true)) {
             $item['error']='Тип поля «'.$label.'» требует настройки отображения.';
         }
@@ -31,8 +31,8 @@ function dashboardDealFields(): array {
     }
     return $resolved;
 }
-function dashboardDealFieldValue(array $row, array $field): string {
-    if (isset($field['error'])) { return '—'; }
+function dashboardDealFieldLabels(array $row, array $field): array {
+    if (isset($field['error'])) { return []; }
     $values=$row[$field['code']]??[];
     if (!is_array($values)) { $values=[$values]; }
     $labels=[];
@@ -40,6 +40,10 @@ function dashboardDealFieldValue(array $row, array $field): string {
         if (!is_scalar($value) || (string)$value==='') { continue; }
         $labels[]=$field['type']==='enumeration'?($field['enum'][(string)$value]??'Неизвестное значение'):(string)$value;
     }
+    return array_values(array_unique($labels));
+}
+function dashboardDealFieldValue(array $row, array $field): string {
+    $labels=dashboardDealFieldLabels($row,$field);
     return $labels?implode(', ',$labels):'—';
 }
 function dashboardDealIsDeferred(array $row, array $field): ?bool {

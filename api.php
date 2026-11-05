@@ -116,13 +116,20 @@ try {
             'manager' => (int)$row['ASSIGNED_BY_ID'], 'date' => date('Y-m-d', $timestamp),
             'deferred' => dashboardDealIsDeferred($row,$dealFields['deferred']),
             'model' => dashboardDealFieldValue($row,$dealFields['model']),
-            'reason' => dashboardDealFieldValue($row,$dealFields['reason']),
             'cancelReason' => dashboardDealFieldValue($row,$dealFields['cancelReason']),
+            'cancelReasons' => dashboardDealFieldLabels($row,$dealFields['cancelReason']),
             'amount' => (float)$row['OPPORTUNITY'], 'currency' => (string)$row['CURRENCY_ID']
         ];
         if (count($deals) > 5000) {
             dashboardFail('В выбранном и предыдущем периодах найдено более 5000 доступных сделок. Нужна серверная агрегация; неполные цифры не показываем.', 422);
         }
+    }
+    require_once __DIR__.'/deal-activities.php';
+    try { $dealActivities=dashboardDealActivities(array_values(array_filter($deals,static fn($deal)=>$deal['date']>=$range['from']->format('Y-m-d')&&$deal['date']<=$range['to']->format('Y-m-d'))),$today); }
+    catch (DomainException $error) { $dealActivities=['error'=>$error->getMessage()]; }
+    catch (Throwable $error) {
+        error_log('Bavaria deal activities: '.get_class($error).' at '.$error->getFile().':'.$error->getLine());
+        $dealActivities=['error'=>'Не удалось прочитать дела по сделкам. Остальные показатели доступны.'];
     }
     require_once __DIR__.'/stage-history.php';
     $stageHistoryError = null;
@@ -157,7 +164,7 @@ try {
     echo json_encode(['today' => $today->format('Y-m-d'), 'from' => $start->format('Y-m-d'),
         'range' => array_map(static fn($date) => $date->format('Y-m-d'), $range), 'leadStats' => $leadStats,
         'dealFieldErrors' => array_map(static fn($field) => $field['error']??null,$dealFields),
-        'currentUserId' => (int)$USER->GetID(), 'categories' => $categories, 'stageOrder' => $stageOrder, 'stageNames' => $stages, 'stageSemantics' => $stageSemantics,
+        'dealActivities' => $dealActivities, 'currentUserId' => (int)$USER->GetID(), 'categories' => $categories, 'stageOrder' => $stageOrder, 'stageNames' => $stages, 'stageSemantics' => $stageSemantics,
         'stageHistory' => $stageHistory, 'stageHistoryError' => $stageHistoryError, 'sources' => $sources, 'deals' => $deals,
         'tasks' => $taskPage['tasks'], 'taskSummary' => $taskPage['summary'], 'taskPage' => $taskPage, 'employees' => $employees],
         JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR);
