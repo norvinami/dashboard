@@ -41,11 +41,12 @@ namespace {
     checkDealActivity(dashboardDealActivityBucket(strtotime('2026-11-30'),true,new \DateTimeImmutable('2026-11-29'))==='month','Sunday ends calendar week');
     checkDealActivity(dashboardDealActivityBucket(null,true,$today)==='unscheduled','Open activity without deadline is not no activity');
     $deals=[];
-    for($id=1;$id<=505;$id++) { $deals[]=['id'=>$id,'title'=>'Deal '.$id,'category'=>0,'deferred'=>$id===1]; }
+    for($id=1;$id<=505;$id++) { $deals[]=['id'=>$id,'title'=>'Deal '.$id,'category'=>0,'semantic'=>$id%3===0?'S':($id%3===1?'P':'F'),'deferred'=>$id===1]; }
     foreach ([[101,1],[101,2],[102,1],[103,3],[104,4],[105,5],[106,6],[107,7],[108,8]] as [$activity,$owner]) { \Bitrix\Crm\ActivityBindingTable::$rows[]=['ACTIVITY_ID'=>$activity,'OWNER_ID'=>$owner]; }
     foreach ([[101,'2026-11-07','N',true],[102,'2026-11-04','N',true],[103,'2026-11-05','Y',true],[104,'2026-11-05','N',false],[105,null,'N',true],[106,'2026-12-10','N',true],[107,'2026-11-05','N',true],[108,'2026-11-20','N',true]] as [$id,$deadline,$completed,$access]) { CCrmActivity::$rows[]=['ID'=>$id,'DEADLINE'=>$deadline,'COMPLETED'=>$completed,'ACCESS'=>$access]; }
     $report=dashboardDealActivities($deals,$today);
     $rows=array_column($report['rows'],null,'id');
+    checkDealActivity($rows[1]['semantic']==='P'&&$rows[2]['semantic']==='F'&&$rows[3]['semantic']==='S','Deal semantics retained for open filter');
     checkDealActivity(count($rows)===505&&\Bitrix\Crm\ActivityBindingTable::$queries===2,'All unique deals and batches');
     checkDealActivity($rows[1]['bucket']==='overdue'&&$rows[2]['bucket']==='week','Nearest deadline per deal; shared activity supports multiple deals');
     checkDealActivity($rows[3]['bucket']==='without'&&$rows[4]['bucket']==='without','Completed and unreadable excluded');

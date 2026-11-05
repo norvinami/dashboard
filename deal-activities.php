@@ -18,7 +18,7 @@ function dashboardDealActivities(array $deals, DateTimeImmutable $today): array 
     $rows=[];
     foreach ($deals as $deal) {
         $id=(int)$deal['id'];
-        $rows[$id]=['id'=>$id,'title'=>$deal['title'],'category'=>$deal['category'],'deferred'=>$deal['deferred'], 'deadline'=>null,'hasActivity'=>false];
+        $rows[$id]=['id'=>$id,'title'=>$deal['title'],'category'=>$deal['category'],'semantic'=>$deal['semantic'],'deferred'=>$deal['deferred'], 'deadline'=>null,'hasActivity'=>false];
     }
     if (!$rows) { return ['rows'=>[], 'asOf'=>$today->format('Y-m-d')]; }
     $bindingClass=\Bitrix\Crm\ActivityBindingTable::class;
