@@ -39,6 +39,11 @@ final class CCrmLead {
     public static function GetListEx($order, $filter, $group, $nav, $select) {
         self::$queries++;
         checkLead($filter['CHECK_PERMISSIONS']==='Y', 'Lead permissions enforced');
+        if (!isset($filter['>=DATE_CREATE'])) {
+            checkLead($nav['nTopCount']===1&&$select===['ID','DATE_CREATE'],'Probe requests only one minimal row');
+            $rows=self::$rows;usort($rows,static fn($a,$b)=>strcmp($b['DATE_CREATE'],$a['DATE_CREATE']));
+            return new LeadTestResult(array_slice($rows,0,1));
+        }
         $rows=array_filter(self::$rows, static fn($r)=>$r['ID']>$filter['>ID'] && strtotime($r['DATE_CREATE'])>=strtotime($filter['>=DATE_CREATE']) && strtotime($r['DATE_CREATE'])<=strtotime($filter['<=DATE_CREATE']));
         return new LeadTestResult(array_slice(array_values($rows),0,$nav['nTopCount']));
     }
@@ -86,6 +91,14 @@ CUserFieldEnum::$rows = [['ID'=>103,'VALUE'=>'Покупка автомобил�
 checkLead(count(dashboardLeadReasonField()['reasons']) === 1, 'No mandatory sales/service labels');
 CUserFieldEnum::$rows[]=['ID'=>999,'VALUE'=>'Новая причина <тест>'];
 checkLead(dashboardLeadReasonField()['reasons']['reason_999']['label'] === 'Новая причина <тест>', 'Future enum labels included without code changes');
+$diag=dashboardLeadDiagnostics(new DateTimeImmutable('2026-10-01'),new DateTimeImmutable('2026-10-16'));
+checkLead($diag['accessibleInPeriod']===536&&$diag['hasAccessibleLeadsAtAnyDate']===true,'Diagnostics count all reasons including unassigned');
+checkLead($diag['withoutUnambiguousReason']===535,'Unknown enum IDs remain unassigned');
+checkLead(!isset($diag['rows'],$diag['latestId'],$diag['leads']),'No client details in diagnostics');
+$savedRows=CCrmLead::$rows;CCrmLead::$rows=[];
+$diag=dashboardLeadDiagnostics(new DateTimeImmutable('2026-10-01'),new DateTimeImmutable('2026-10-16'));
+checkLead($diag['accessibleInPeriod']===0&&!$diag['hasAccessibleLeadsAtAnyDate'],'Empty permitted cohort distinguished');
+CCrmLead::$rows=$savedRows;
 $USER_FIELD_MANAGER->ambiguous=true;
 $rejected=false;
 try { dashboardLeadReasonField(); } catch (DomainException $error) { $rejected=true; }

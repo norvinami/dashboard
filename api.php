@@ -10,6 +10,18 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     dashboardFail('Разрешено только чтение данных.', 405);
 }
 try {
+    if (isset($_GET['leadDiagnostics'])) {
+        if (!\Bitrix\Main\Loader::includeModule('crm')) { dashboardFail('Модуль CRM недоступен.'); }
+        require_once __DIR__.'/date-range.php';
+        require_once __DIR__.'/lead-data.php';
+        try {
+            $range=dashboardDateRange($_GET,new DateTimeImmutable('today'));
+            $diagnostics=dashboardLeadDiagnostics($range['from'],$range['to']);
+        } catch (InvalidArgumentException $error) { dashboardFail($error->getMessage(),400); }
+        catch (DomainException $error) { dashboardFail($error->getMessage(),422); }
+        echo json_encode(['userId'=>(int)$USER->GetID()]+$diagnostics,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE|JSON_THROW_ON_ERROR);
+        exit;
+    }
     if (isset($_GET['activities'])) {
         if (!\Bitrix\Main\Loader::includeModule('crm')) { dashboardFail('Модуль CRM недоступен.'); }
         $categories=null;

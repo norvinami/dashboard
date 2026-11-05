@@ -102,3 +102,19 @@ function dashboardReadLeads(DateTimeImmutable $from, DateTimeImmutable $to): arr
     if ($batch) { dashboardLeadBatch($batch, $field, $stats); }
     return $stats;
 }
+
+/** Count-only diagnostics under the same user permissions; no lead/contact details. */
+function dashboardLeadDiagnostics(DateTimeImmutable $from, DateTimeImmutable $to): array {
+    $stats=dashboardReadLeads($from,$to);
+    $counts=[];$total=(int)$stats['unassigned'];
+    foreach ($stats['reasons'] as $key=>$reason) {
+        $count=(int)$stats['directions'][$key]['total'];$total+=$count;
+        $counts[]=['reason'=>$reason['label'],'total'=>$count];
+    }
+    $result=CCrmLead::GetListEx(['DATE_CREATE'=>'DESC','ID'=>'DESC'],['CHECK_PERMISSIONS'=>'Y'],false,['nTopCount'=>1],['ID','DATE_CREATE']);
+    if (!is_object($result)) { throw new RuntimeException('CRM lead probe failed'); }
+    $latest=$result->Fetch();
+    return ['from'=>$from->format('Y-m-d'),'to'=>$to->format('Y-m-d'),'accessibleInPeriod'=>$total,
+        'withoutUnambiguousReason'=>(int)$stats['unassigned'],'byReason'=>$counts,
+        'hasAccessibleLeadsAtAnyDate'=>(bool)$latest,'latestAccessibleLeadCreated'=>$latest?(string)($latest['DATE_CREATE']??''):null];
+}

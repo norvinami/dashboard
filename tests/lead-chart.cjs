@@ -4,7 +4,7 @@ const start=source.indexOf('var leadReasons=dateQuery');
 const end=source.indexOf('\nfunction renderDash()',start);
 const reasons=Object.fromEntries(['Покупка нового автомобиля','Сервис','Покупка автомобиля с пробегом','Сдать авто на комиссию','СПАМ','Справочная информация','Новая <причина>'].map((label,i)=>['reason_'+i,{label,category:i===0?0:i===1?7:null}]));
 const directions=Object.fromEntries(Object.keys(reasons).map((id,i)=>[id,{total:i===6?0:4,qualified:i<2?1:0,successful:i>=2&&i<6?2:0,failed:i<6?1:0,open:i<6?1:0,unconfirmed:i<2?1:0}]));
-const ctx={dateQuery:new URLSearchParams(),live:{leadStats:{reasons,directions,unassigned:2}},ico:()=>'',chip:()=>'',fmt:String,pct:n=>n+'%',esc:s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;')};
+const ctx={dateQuery:new URLSearchParams(),URLSearchParams,live:{range:{from:'2026-08-01',to:'2026-11-05'},leadStats:{reasons,directions,unassigned:2}},ico:()=>'',chip:()=>'',fmt:String,pct:n=>n+'%',esc:s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;')};
 vm.createContext(ctx);vm.runInContext(source.slice(start,end),ctx);
 let html=ctx.renderLeadChart();
 assert.equal((html.match(/class="lead-chart-row"/g)||[]).length,2);
@@ -13,5 +13,7 @@ ctx.leadReasons=['reason_2'];html=ctx.renderLeadChart();assert.equal((html.match
 ctx.leadReasons=['reason_0'];html=ctx.renderLeadChart();assert.ok(html.includes('целевых 1'));assert.ok(html.includes('25%'));
 ctx.leadOutcome='successful';ctx.leadReasons=['reason_2'];html=ctx.renderLeadChart();assert.ok(html.includes('lead-segment successful'));assert.ok(!html.includes('lead-segment failed'));assert.ok(html.includes('Всего 4'));
 ctx.leadReasons=['removed'];ctx.renderLeadChart();assert.equal(ctx.leadReasons.length,0);assert.ok(ctx.renderLeadChart().includes('Выберите причины обращения'));ctx.leadReasons=['reason_0','reason_2','reason_6'];html=ctx.renderLeadChart();assert.equal((html.match(/class="lead-chart-row"/g)||[]).length,3);
+ctx.live.leadStats={reasons:{only:{label:'Выбранная',category:0},other:{label:'Другая',category:null}},directions:{only:{total:0,qualified:0,failed:0,open:0,unconfirmed:0,successful:0},other:{total:3,qualified:0,failed:0,open:3,unconfirmed:0,successful:0}},unassigned:0};ctx.leadReasons=['only'];html=ctx.renderLeadChart();assert.ok(html.includes('среди выбранных причин обращений нет'));
+ctx.live.leadStats.directions.other.total=0;ctx.live.leadStats.directions.other.open=0;html=ctx.renderLeadChart();assert.ok(html.includes('Битрикс не вернул доступных текущему аккаунту лидов'));
 ctx.live.leadStats={error:'<ошибка>'};assert.ok(ctx.renderLeadChart().includes('&lt;ошибка&gt;'));
 console.log('PASS: default purchase/service, multiple enum selections and filters, zero rows, dynamic labels escaped, status vs target conversion, denominator unchanged, stale filter reset, isolated error.');
