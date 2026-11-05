@@ -82,7 +82,7 @@ try {
     $dealFields=dashboardDealFields();
     $customSelect=[];
     foreach ($dealFields as $field) { if (!isset($field['error'])) { $customSelect[]=$field['code']; } }
-    // CRM permissions are checked as logged-in user 5; no elevated service identity.
+    // CRM permissions are checked as the current logged-in user; no elevated service identity.
     $result = CCrmDeal::GetListEx(
         ['ID' => 'ASC'],
         ['>=DATE_CREATE' => $start->format('d.m.Y').' 00:00:00', '<=DATE_CREATE' => $end->format('d.m.Y').' 23:59:59', 'CHECK_PERMISSIONS' => 'Y'],
@@ -95,7 +95,7 @@ try {
         dashboardFail('Не удалось прочитать сделки CRM.');
     }
     $deals = [];
-    $employeeIds = [5 => true];
+    $employeeIds = [(int)$USER->GetID() => true];
     while ($row = $result->Fetch()) {
         $category = (int)$row['CATEGORY_ID'];
         $stage = (string)$row['STAGE_ID'];
@@ -157,7 +157,7 @@ try {
     echo json_encode(['today' => $today->format('Y-m-d'), 'from' => $start->format('Y-m-d'),
         'range' => array_map(static fn($date) => $date->format('Y-m-d'), $range), 'leadStats' => $leadStats,
         'dealFieldErrors' => array_map(static fn($field) => $field['error']??null,$dealFields),
-        'categories' => $categories, 'stageOrder' => $stageOrder, 'stageNames' => $stages, 'stageSemantics' => $stageSemantics,
+        'currentUserId' => (int)$USER->GetID(), 'categories' => $categories, 'stageOrder' => $stageOrder, 'stageNames' => $stages, 'stageSemantics' => $stageSemantics,
         'stageHistory' => $stageHistory, 'stageHistoryError' => $stageHistoryError, 'sources' => $sources, 'deals' => $deals,
         'tasks' => $taskPage['tasks'], 'taskSummary' => $taskPage['summary'], 'taskPage' => $taskPage, 'employees' => $employees],
         JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR);

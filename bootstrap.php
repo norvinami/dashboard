@@ -14,9 +14,9 @@ define('NO_AGENT_STATISTIC', true);
 require_once rtrim($_SERVER['DOCUMENT_ROOT'], '/').'/bitrix/modules/main/include/prolog_before.php';
 header('Cache-Control: private, no-store, max-age=0');
 global $USER;
-if (!is_object($USER) || !$USER->IsAuthorized() || (int)$USER->GetID() !== 5) {
+if (!is_object($USER) || !$USER->IsAuthorized() || !in_array((int)$USER->GetID(), [5, 405], true)) {
     http_response_code(403);
     header('Content-Type: text/plain; charset=UTF-8');
-    exit('Доступ разрешён только Оксане Шлегель (пользователь 5).');
+    exit('У вас нет доступа к дашборду.');
 }
 define('BAVARIA_DASHBOARD_ALLOWED', true);

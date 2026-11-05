@@ -292,12 +292,12 @@ tbody tr.cl:hover td{background:#f8fafd}
       <button class="btn btn-p btn-s" type="submit">Применить</button>
     </form>
     <div class="pill-btn user">
-      <div class="ava" style="background:linear-gradient(135deg,#8a6a58,#4b3a33)">ОШ</div>
-      <div class="ut"><b>Оксана Шлегель</b><small>Только чтение</small></div>
+      <div class="ava" style="background:linear-gradient(135deg,#8a6a58,#4b3a33)">БП</div>
+      <div class="ut"><b id="currentUserName">Пользователь</b><small>Только чтение</small></div>
       <svg class="i ut" style="width:16px;color:var(--ink2)"><use href="#i-chev"/></svg>
     </div>
   </header>
-  <main id="app"></main><p style="color:var(--muted);font-size:12px;margin:16px 0">Период — дата создания лида для графика обращений и дата создания сделки для остальных показателей. Причина обращения берётся из текущего значения поля лида. Показаны только доступные Оксане данные CRM и задач. Суммы успешных сделок в ₸, не поступления оплаты. Воронка накопительная: предыдущие основные этапы засчитываются по максимальному достигнутому; отложенный этап учитывается отдельно. Данные 1С и поля автомобиля пока не подключены. Обновление — при перезагрузке страницы.</p>
+  <main id="app"></main><p style="color:var(--muted);font-size:12px;margin:16px 0">Период — дата создания лида для графика обращений и дата создания сделки для остальных показателей. Причина обращения берётся из текущего значения поля лида. Показаны только данные CRM и задач, доступные текущему пользователю. Суммы успешных сделок в ₸, не поступления оплаты. Воронка накопительная: предыдущие основные этапы засчитываются по максимальному достигнутому; отложенный этап учитывается отдельно. Данные 1С и поля автомобиля пока не подключены. Обновление — при перезагрузке страницы.</p>
 </div>
 
 <div class="ov" id="ov"><div class="modal" id="modal"></div></div>
@@ -352,6 +352,7 @@ var SOURCES=Object.keys(live.sources).map(function(id){var n=live.sources[id],v=
 SOURCES.push({id:'__unknown',name:'Не указан',ic:'i-dots',bg:'#7c8799'});var SRC={};SOURCES.forEach(function(s){SRC[s.id]=s});
 var EMP=live.employees.map(function(e){return {id:'e'+e.id,name:e.name,full:e.name,role:e.role,c:'#5b8fd6',sales:live.deals.some(function(d){return d.manager===e.id&&d.category!==7}),svc:live.deals.some(function(d){return d.manager===e.id&&d.category===7})}});
 var EM={};EMP.forEach(function(e){EM[e.id]=e;e.ini=e.full.split(' ').map(function(w){return w[0]}).join('').slice(0,2).toUpperCase()});
+var currentEmployee=EM['e'+live.currentUserId];if(currentEmployee){document.getElementById('currentUserName').textContent=currentEmployee.name;document.querySelector('.pill-btn.user .ava').textContent=currentEmployee.ini;}
 var SALES_EMP=EMP.filter(function(e){return e.sales}).map(function(e){return e.id}),SVC_EMP=EMP.filter(function(e){return e.svc}).map(function(e){return e.id});
 var SVC_ST={new:['Звонок/заявка','b-gray'],in_work:['В работе','b-amber'],done:['Запись на сервис','b-green'],cancel:['Провал','b-red']};
 var DB={leads:[],service:[],tasks:live.tasks.map(function(t){return {id:'T'+t.id,title:t.title,who:'e'+t.manager,due:t.due,status:t.done?'done':'open',overdue:!!t.overdue}})};
